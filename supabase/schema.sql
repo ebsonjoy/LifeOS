@@ -133,12 +133,26 @@ CREATE TABLE IF NOT EXISTS public.fitness_logs (
   date DATE NOT NULL,
   workout_completed BOOLEAN NOT NULL DEFAULT false,
   workout_type TEXT,
+  muscle_group TEXT,
+  exercise_name TEXT,
+  weight_lifted NUMERIC,
+  sets INTEGER,
+  reps INTEGER,
   duration_minutes INTEGER DEFAULT 0,
   notes TEXT,
   weight NUMERIC,
+  height NUMERIC,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Idempotent column additions for existing databases
+ALTER TABLE public.fitness_logs ADD COLUMN IF NOT EXISTS muscle_group TEXT;
+ALTER TABLE public.fitness_logs ADD COLUMN IF NOT EXISTS exercise_name TEXT;
+ALTER TABLE public.fitness_logs ADD COLUMN IF NOT EXISTS weight_lifted NUMERIC;
+ALTER TABLE public.fitness_logs ADD COLUMN IF NOT EXISTS sets INTEGER;
+ALTER TABLE public.fitness_logs ADD COLUMN IF NOT EXISTS reps INTEGER;
+ALTER TABLE public.fitness_logs ADD COLUMN IF NOT EXISTS height NUMERIC;
 
 -- 11. DAILY PLANS / TIME-BLOCK TASKS TABLE
 CREATE TABLE IF NOT EXISTS public.daily_plans (

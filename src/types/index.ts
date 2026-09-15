@@ -138,15 +138,31 @@ export interface JobApplication {
   updated_at: string
 }
 
+export type MuscleGroup =
+  | 'chest'
+  | 'back'
+  | 'legs'
+  | 'shoulders'
+  | 'arms'
+  | 'core'
+  | 'full_body'
+  | 'cardio'
+
 export interface FitnessLog {
   id: string
   user_id: string
   date: string // YYYY-MM-DD
   workout_completed: boolean
-  workout_type?: string | null
+  workout_type?: string | null // e.g. "Push Day", "Strength Training"
+  muscle_group?: MuscleGroup | string | null
+  exercise_name?: string | null
+  weight_lifted?: number | null // in kg
+  sets?: number | null
+  reps?: number | null
   duration_minutes: number
   notes?: string | null
-  weight?: number | null
+  weight?: number | null // body weight in kg
+  height?: number | null // body height in cm
   created_at: string
   updated_at: string
 }

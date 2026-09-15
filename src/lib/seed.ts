@@ -188,15 +188,89 @@ export async function seedSampleData(userId: string): Promise<void> {
     notes: 'Take-home architectural assignment submitted.',
   })
 
-  // 6. Sample Fitness
+  // 6. Sample Fitness & Weekly Biometrics
+  const d1 = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+  const d2 = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+
+  // Week -2 Biometrics
+  await repository.saveFitnessLog({
+    user_id: userId,
+    date: d1,
+    workout_completed: false,
+    workout_type: null,
+    duration_minutes: 0,
+    weight: 77.8,
+    height: 178,
+  })
+
+  // Week -1 Biometrics
+  await repository.saveFitnessLog({
+    user_id: userId,
+    date: d2,
+    workout_completed: false,
+    workout_type: null,
+    duration_minutes: 0,
+    weight: 77.1,
+    height: 178,
+  })
+
+  // Past Workouts showing progressive strength upgrades
+  await repository.saveFitnessLog({
+    user_id: userId,
+    date: d1,
+    workout_completed: true,
+    workout_type: 'Push Day',
+    muscle_group: 'chest',
+    exercise_name: 'Barbell Bench Press',
+    weight_lifted: 80,
+    sets: 4,
+    reps: 8,
+    duration_minutes: 50,
+    notes: 'Base weight felt solid.',
+  })
+
+  await repository.saveFitnessLog({
+    user_id: userId,
+    date: d2,
+    workout_completed: true,
+    workout_type: 'Push Day',
+    muscle_group: 'chest',
+    exercise_name: 'Barbell Bench Press',
+    weight_lifted: 85,
+    sets: 4,
+    reps: 7,
+    duration_minutes: 55,
+    notes: '+5kg upgrade from last week!',
+  })
+
   await repository.saveFitnessLog({
     user_id: userId,
     date: today,
     workout_completed: true,
-    workout_type: 'Strength: Upper Body Push',
+    workout_type: 'Push Day',
+    muscle_group: 'chest',
+    exercise_name: 'Barbell Bench Press',
+    weight_lifted: 87.5,
+    sets: 4,
+    reps: 6,
     duration_minutes: 55,
-    notes: 'Bench press 85kg 4x6, Overhead press 55kg 3x8, Triceps dips.',
+    notes: 'New PR! Bar path was smooth, explosive on rep 1-4.',
     weight: 76.4,
+    height: 178,
+  })
+
+  await repository.saveFitnessLog({
+    user_id: userId,
+    date: today,
+    workout_completed: true,
+    workout_type: 'Push Day',
+    muscle_group: 'shoulders',
+    exercise_name: 'Overhead Press',
+    weight_lifted: 55,
+    sets: 3,
+    reps: 8,
+    duration_minutes: 20,
+    notes: 'Clean lockouts.',
   })
 
   // 7. Sample Journal

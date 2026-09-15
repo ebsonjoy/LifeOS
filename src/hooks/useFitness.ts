@@ -40,11 +40,34 @@ export function useFitness() {
   const weightLogs = logs
     .filter((l) => l.weight != null)
     .sort((a, b) => a.date.localeCompare(b.date))
+  const heightLogs = logs
+    .filter((l) => l.height != null)
+    .sort((a, b) => a.date.localeCompare(b.date))
+  const biometricLogs = logs
+    .filter((l) => l.weight != null || l.height != null)
+    .sort((a, b) => b.date.localeCompare(a.date))
+
+  const latestWeight = weightLogs.length > 0 ? weightLogs[weightLogs.length - 1].weight ?? null : null
+  const latestHeight = heightLogs.length > 0 ? heightLogs[heightLogs.length - 1].height ?? null : null
+
+  const strengthLogs = logs
+    .filter((l) => Boolean(l.exercise_name && l.weight_lifted != null))
+    .sort((a, b) => a.date.localeCompare(b.date))
+
+  const exerciseNames = Array.from(
+    new Set(strengthLogs.map((l) => l.exercise_name?.trim()).filter(Boolean) as string[])
+  )
 
   return {
     logs,
     workouts,
     weightLogs,
+    heightLogs,
+    biometricLogs,
+    latestWeight,
+    latestHeight,
+    strengthLogs,
+    exerciseNames,
     isLoading: fitnessQuery.isLoading,
     saveFitnessLog: saveMutation.mutateAsync,
     deleteFitnessLog: deleteMutation.mutateAsync,
