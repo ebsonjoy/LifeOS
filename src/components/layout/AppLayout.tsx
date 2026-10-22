@@ -6,13 +6,13 @@ import {
   Briefcase,
   Settings,
   ArrowUpRight,
-  Sprout,
   Cloud,
   HardDrive,
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useToday } from '../../features/life/ui'
 import { DailyHeader } from './DailyHeader'
+import { Brand } from '../brand/Brand'
 const links = [
   { to: '/today', label: 'Today', icon: CalendarDays },
   { to: '/english', label: 'English', icon: BookOpen },
@@ -32,13 +32,7 @@ export function AppLayout() {
       </a>
       <aside className="life-sidebar">
         <NavLink to="/today" className="brand">
-          <span className="brand-mark">
-            <Sprout size={23} />
-          </span>
-          <span>
-            life<span className="brand-os">OS</span>
-            <small>A little better, every day.</small>
-          </span>
+          <Brand tagline />
         </NavLink>
         <div className="nav-label">YOUR EVERYDAY</div>
         <nav aria-label="Main navigation">

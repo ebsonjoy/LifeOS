@@ -51,6 +51,8 @@ async function modules(cloud = false, cloudError = null) {
     Intl,
     Error,
     URL,
+    setTimeout,
+    clearTimeout,
   })
   const cache = new Map()
   const network = new vm.SyntheticModule(
@@ -82,6 +84,8 @@ async function modules(cloud = false, cloudError = null) {
     )
     return module
   }
+  const auth = await load('src/lib/authSession.ts')
+  await auth.evaluate()
   const repository = await load('src/lib/repository.ts')
   await repository.evaluate()
   const helpers = await load('src/features/life/helpers.ts')
@@ -90,6 +94,7 @@ async function modules(cloud = false, cloudError = null) {
   await records.evaluate()
   const storage = cache.get(path.resolve('src/lib/storage.ts'))
   return {
+    auth: auth.namespace,
     repository: repository.namespace.repository,
     records: records.namespace,
     helpers: helpers.namespace,
@@ -346,4 +351,156 @@ test('timetable plans save alongside priorities and retain tomorrow dates', asyn
   assert.equal(loaded[0].date, '2026-10-23')
   assert.equal(loaded[0].start_time, '09:00')
   assert.equal(loaded[0].category, 'schedule')
+})
+
+function authHarness() {
+  let callback
+  let resolve
+  let reject
+  let unsubscribed = false
+  const auth = {
+    onAuthStateChange: (fn) => {
+      callback = fn
+      return {
+        data: {
+          subscription: {
+            unsubscribe: () => {
+              unsubscribed = true
+            },
+          },
+        },
+      }
+    },
+    getSession: () =>
+      new Promise((yes, no) => {
+        resolve = yes
+        reject = no
+      }),
+  }
+  return {
+    auth,
+    emit: (event, session) => callback(event, session),
+    resolve: (session) => resolve({ data: { session }, error: null }),
+    reject: (error) => reject(error),
+    unsubscribed: () => unsubscribed,
+  }
+}
+const flush = () => new Promise((resolve) => setImmediate(resolve))
+
+test('newer auth events cannot be overwritten by a stale initial session', async () => {
+  const { auth: a } = await modules()
+  const h = authHarness(),
+    values = [],
+    errors = []
+  const stop = a.observeSession(
+    h.auth,
+    (s) => values.push(s),
+    (e) => errors.push(e),
+  )
+  h.emit('SIGNED_OUT', null)
+  h.resolve({ user: { id: 'old-user' } })
+  await flush()
+  assert.deepEqual(values, [null])
+  h.emit('SIGNED_IN', { user: { id: 'new-user' } })
+  h.emit('TOKEN_REFRESHED', {
+    user: { id: 'new-user' },
+    access_token: 'renewed',
+  })
+  assert.equal(values.at(-1).access_token, 'renewed')
+  assert.equal(errors.length, 0)
+  stop()
+  assert.equal(h.unsubscribed(), true)
+})
+
+test('session startup failures surface and disposed subscriptions ignore pending work', async () => {
+  const { auth: a } = await modules()
+  const h = authHarness(),
+    values = [],
+    errors = []
+  const stop = a.observeSession(
+    h.auth,
+    (s) => values.push(s),
+    (e) => errors.push(e),
+  )
+  h.reject(new Error('Offline'))
+  await flush()
+  assert.equal(errors[0].message, 'Offline')
+  stop()
+  h.emit('SIGNED_IN', { user: { id: 'ignored' } })
+  assert.equal(values.length, 0)
+  const pending = authHarness()
+  const close = a.observeSession(
+    pending.auth,
+    (s) => values.push(s),
+    (e) => errors.push(e),
+  )
+  close()
+  pending.resolve({ user: { id: 'late' } })
+  await flush()
+  assert.equal(values.length, 0)
+})
+
+test('session restoration, profile invalidation, and safe return destinations', async () => {
+  const { auth: a } = await modules()
+  const h = authHarness(),
+    values = []
+  const stop = a.observeSession(
+    h.auth,
+    (s) => values.push(s),
+    () => assert.fail('unexpected session failure'),
+  )
+  h.resolve({ user: { id: 'returning' } })
+  await flush()
+  assert.equal(values[0].user.id, 'returning')
+  stop()
+  const guard = a.requestGuard()
+  const old = guard.begin()
+  guard.invalidate() // logout/account switch/unmount
+  assert.equal(old(), false)
+  const current = guard.begin()
+  assert.equal(current(), true)
+  const newer = guard.begin()
+  assert.equal(current(), false)
+  assert.equal(newer(), true)
+  assert.equal(
+    a.safeReturnPath('/today?date=2026-10-23#timetable'),
+    '/today?date=2026-10-23#timetable',
+  )
+  for (const path of [
+    'https://evil.test',
+    '//evil.test',
+    '/\\evil.test',
+    '/login',
+    null,
+  ])
+    assert.equal(a.safeReturnPath(path), '/today')
+  assert.equal(
+    a.parseLocalUser(null),
+    null,
+    'logout must remain logged out on refresh',
+  )
+  assert.equal(
+    a.parseLocalUser('{"id":"existing","email":"local@example.com"}').id,
+    'existing',
+  )
+  assert.throws(() => a.parseLocalUser('{"id":7}'))
+})
+
+test('a stalled session check offers recovery instead of endless loading', async () => {
+  const { auth: a } = await modules()
+  const h = authHarness(),
+    errors = [],
+    sessions = []
+  const stop = a.observeSession(
+    h.auth,
+    (s) => sessions.push(s),
+    (e) => errors.push(e),
+    5,
+  )
+  await new Promise((resolve) => setTimeout(resolve, 15))
+  assert.match(errors[0].message, /taking too long/)
+  h.resolve({ user: { id: 'recovered' } })
+  await flush()
+  assert.equal(sessions[0].user.id, 'recovered')
+  stop()
 })

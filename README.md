@@ -43,3 +43,11 @@ Use **Settings → Download my data** for a JSON export. Partial exports identif
 The header shows local time with seconds. On Today, use the date picker to choose a day, then add timed plans to the timetable (8 AM–10 PM slots; you can enter earlier or later times in the form). Timetable plans are separate from the three priorities; priorities with a start time also appear in the timetable.
 
 The header shows the next task and changes to a due reminder at its start time. Unfinished tasks stay due for that local date, including when returning to the app late. The latest due task appears first; marking it done reveals any remaining due tasks. Plans refresh from cloud storage every minute while the app is active and on focus. These are in-app reminders, not background notifications; the app must be open to show them. No database migration is needed for this feature.
+
+## Sign-in and session behavior
+
+Cloud sessions are persisted and renewed by the Supabase client. Auth events are the single source of identity; outdated startup reads and profile responses cannot replace newer state. Account changes and sign-out clear the in-memory query cache. Sign-out applies to the current browser session, leaving other devices signed in. Startup connection failures offer a retry instead of an endless loading screen.
+
+Protected links return you to the same page/date after sign-in. Registration requiring email verification shows a confirmation screen. Configure your deployed origin in Supabase Auth's allowed redirect URLs so confirmation links can return to `/login` on your site.
+
+Without Supabase configuration, **Open local workspace** explicitly opens browser-only storage. Signing out stays signed out after refresh; reopening restores the same local workspace and its records. Local mode is not password-protected cloud authentication.

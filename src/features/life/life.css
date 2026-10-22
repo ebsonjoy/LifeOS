@@ -10,12 +10,7 @@
   --peach: #f7eee3;
   --danger: #a84040;
   color: var(--ink);
-  font-family:
-    Inter,
-    -apple-system,
-    BlinkMacSystemFont,
-    'Segoe UI',
-    sans-serif;
+  font-family: var(--font-sans);
   font-size: 14px;
   line-height: 1.5;
 }
@@ -144,7 +139,7 @@ html.dark .life-dialog {
   padding-top: 70px;
 }
 .sidebar-note p {
-  font-family: Georgia, serif;
+  font-family: var(--font-heading);
   font-size: 25px;
   line-height: 1.25;
   margin: 15px 0 12px;
@@ -249,7 +244,7 @@ html.dark .life-dialog {
   margin-bottom: 28px;
 }
 .page-intro h1 {
-  font-family: Georgia, 'Times New Roman', serif;
+  font-family: var(--font-heading);
   font-size: 39px;
   font-weight: 400;
   line-height: 1.15;
@@ -407,7 +402,7 @@ html.dark .life-dialog {
   color: var(--accent);
 }
 .feature-card h2 {
-  font-family: Georgia, serif;
+  font-family: var(--font-heading);
   font-weight: 400;
   font-size: 28px;
   margin: 12px 0 9px;
@@ -589,7 +584,7 @@ html.dark .life-dialog {
 }
 .summary-item strong {
   display: block;
-  font-family: Georgia, serif;
+  font-family: var(--font-heading);
   font-weight: 400;
   font-size: 28px;
   margin: 6px 0;
@@ -1252,4 +1247,100 @@ html.dark .life-dialog {
   font-size: 11px;
   cursor: pointer;
   overflow-wrap: anywhere;
+}
+
+/* A shared wordmark and type scale across authentication and the workspace. */
+.lifeos-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+  letter-spacing: normal;
+}
+.lifeos-brand img {
+  flex-shrink: 0;
+}
+.lifeos-wordmark {
+  font-family: var(--font-heading);
+  font-size: 27px;
+  line-height: 1.15;
+  font-weight: 700;
+  letter-spacing: -1.3px;
+}
+.lifeos-wordmark > span {
+  font-weight: 500;
+}
+.lifeos-wordmark i {
+  font-style: normal;
+  color: var(--accent);
+  margin-left: 1px;
+}
+.lifeos-brand small {
+  display: block;
+  font-family: var(--font-sans);
+  font-size: 9px;
+  color: var(--muted);
+  font-weight: 400;
+  letter-spacing: 0.1px;
+  margin-top: 5px;
+}
+.life table {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.life th {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+.schedule-title strong {
+  font-family: var(--font-sans);
+  font-weight: 550;
+  font-size: 13px;
+}
+.schedule-title span,
+.hour-label {
+  font-size: 11px;
+}
+.session-screen.life {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+.session-card {
+  display: grid;
+  justify-items: center;
+  gap: 22px;
+  text-align: center;
+  max-width: 440px;
+}
+.session-card h1 {
+  font-family: var(--font-heading);
+  font-size: 25px;
+}
+.session-card p {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.session-card > a {
+  color: var(--accent);
+  font-size: 12px;
+  text-decoration: underline;
+}
+.auth-spinner {
+  animation: auth-spin 1s linear infinite;
+}
+@keyframes auth-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .auth-spinner {
+    animation: none;
+  }
 }

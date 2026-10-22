@@ -5,7 +5,12 @@ import { ThemeProvider } from './context/ThemeContext'
 import { ToastProvider } from './context/ToastContext'
 import { AuthProvider } from './context/AuthContext'
 import { ProtectedRoute } from './components/auth/ProtectedRoute'
-import { AppLayout } from './components/layout/AppLayout'
+import { PageTitle } from './components/layout/PageTitle'
+const AppLayout = lazy(() =>
+  import('./components/layout/AppLayout').then((m) => ({
+    default: m.AppLayout,
+  })),
+)
 
 // Pages
 const Login = lazy(() =>
@@ -49,6 +54,7 @@ export default function App() {
         <ToastProvider>
           <AuthProvider>
             <BrowserRouter>
+              <PageTitle />
               <Suspense
                 fallback={
                   <div className="p-8" role="status">

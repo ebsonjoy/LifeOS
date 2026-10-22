@@ -13,13 +13,13 @@
   body {
     font-family: var(--font-sans);
     min-height: 100vh;
-    background-color: #09090b;
-    color: #f4f4f5;
+    background-color: #171e1a;
+    color: #e5ebe3;
   }
 
   html.light body {
-    background-color: #fafafa;
-    color: #09090b;
+    background-color: #f7f8f4;
+    color: #25382f;
   }
 
   html.light * {
