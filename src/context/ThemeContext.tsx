@@ -13,7 +13,7 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined)
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState<Theme>(() => {
     const saved = localStorage.getItem('lifeos_theme') as Theme | null
-    return saved || 'dark' // Default theme is dark as requested
+    return saved || 'light'
   })
 
   const [isDark, setIsDark] = useState(true)

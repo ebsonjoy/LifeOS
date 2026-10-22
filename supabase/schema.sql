@@ -1,311 +1,118 @@
--- ==============================================================================
--- LifeOS Supabase Database Schema
--- Production-Ready V1 Schema with Row Level Security (RLS)
--- ==============================================================================
-
--- 1. PROFILES TABLE (Associated with auth.users)
+-- LifeOS: the 10 tables used by Today, English, Gym & Food, and Jobs.
+-- Runnable on a new Supabase project or over the previous LifeOS schema.
+-- This file does not delete tables. For the requested empty-table cleanup,
+-- run migrations/20261021_focus_cleanup.sql instead (it includes this setup).
+BEGIN;
 CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  full_name TEXT,
-  avatar_url TEXT,
-  timezone TEXT DEFAULT 'UTC',
+  full_name TEXT, avatar_url TEXT, timezone TEXT DEFAULT 'Asia/Kolkata',
   transformation_start_date DATE DEFAULT CURRENT_DATE,
   transformation_target_date DATE DEFAULT (CURRENT_DATE + INTERVAL '3 years')::DATE,
-  onboarding_completed BOOLEAN DEFAULT false,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  onboarding_completed BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now()
 );
-
--- 2. HABITS TABLE
 CREATE TABLE IF NOT EXISTS public.habits (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  name TEXT NOT NULL,
-  description TEXT,
-  category TEXT NOT NULL CHECK (category IN ('career', 'fitness', 'mind', 'english', 'learning', 'finance', 'discipline', 'personal')),
-  frequency TEXT NOT NULL DEFAULT 'daily' CHECK (frequency IN ('daily', 'weekly')),
-  target_value NUMERIC DEFAULT 1,
-  unit TEXT DEFAULT 'times',
-  color TEXT DEFAULT '#3B82F6',
-  is_active BOOLEAN DEFAULT true,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(), user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL, description TEXT, category TEXT NOT NULL DEFAULT 'personal',
+  frequency TEXT NOT NULL DEFAULT 'daily' CHECK (frequency IN ('daily','weekly')),
+  target_value NUMERIC DEFAULT 1, unit TEXT DEFAULT 'check', color TEXT DEFAULT '#3e6b50', is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now()
 );
-
--- 3. HABIT LOGS TABLE
 CREATE TABLE IF NOT EXISTS public.habit_logs (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  habit_id UUID NOT NULL REFERENCES public.habits(id) ON DELETE CASCADE,
-  date DATE NOT NULL,
-  completed BOOLEAN NOT NULL DEFAULT false,
-  value NUMERIC DEFAULT 1,
-  note TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  CONSTRAINT habit_logs_user_habit_date_key UNIQUE (user_id, habit_id, date)
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(), user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  habit_id UUID NOT NULL REFERENCES public.habits(id) ON DELETE CASCADE, date DATE NOT NULL,
+  completed BOOLEAN NOT NULL DEFAULT false, value NUMERIC DEFAULT 1, note TEXT, created_at TIMESTAMPTZ DEFAULT now()
 );
-
--- 4. DAILY LOGS TABLE
 CREATE TABLE IF NOT EXISTS public.daily_logs (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  date DATE NOT NULL,
-  mood INTEGER CHECK (mood >= 1 AND mood <= 5),
-  daily_score INTEGER CHECK (daily_score >= 0 AND daily_score <= 100),
-  screen_time_minutes INTEGER CHECK (screen_time_minutes >= 0),
-  journal TEXT,
-  journal_corrected TEXT,
-  accomplishments TEXT,
-  went_wrong TEXT,
-  improve_tomorrow TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW(),
-  CONSTRAINT daily_logs_user_date_key UNIQUE (user_id, date)
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(), user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  date DATE NOT NULL, mood INTEGER CHECK (mood BETWEEN 1 AND 5), daily_score INTEGER CHECK (daily_score BETWEEN 0 AND 100),
+  screen_time_minutes INTEGER CHECK (screen_time_minutes >= 0), journal TEXT, journal_corrected TEXT,
+  accomplishments TEXT, went_wrong TEXT, improve_tomorrow TEXT,
+  created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now()
 );
-
--- 5. GOALS TABLE
-CREATE TABLE IF NOT EXISTS public.goals (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  title TEXT NOT NULL,
-  description TEXT,
-  category TEXT NOT NULL CHECK (category IN ('career', 'fitness', 'mind', 'english', 'learning', 'finance', 'discipline', 'personal')),
-  target_date DATE,
-  progress INTEGER NOT NULL DEFAULT 0 CHECK (progress >= 0 AND progress <= 100),
-  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'completed', 'paused')),
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS public.daily_plans (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(), user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  date DATE NOT NULL, title TEXT NOT NULL, category TEXT NOT NULL DEFAULT 'personal',
+  start_time TEXT NOT NULL DEFAULT '', end_time TEXT NOT NULL DEFAULT '', completed BOOLEAN NOT NULL DEFAULT false, summary TEXT,
+  created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now()
 );
-
--- 6. JOURNAL ENTRIES TABLE
-CREATE TABLE IF NOT EXISTS public.journal_entries (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  entry_date DATE NOT NULL,
-  title TEXT NOT NULL,
-  content TEXT NOT NULL,
-  mood INTEGER CHECK (mood >= 1 AND mood <= 5),
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 7. EXPENSES TABLE
-CREATE TABLE IF NOT EXISTS public.expenses (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  amount NUMERIC NOT NULL CHECK (amount >= 0),
-  category TEXT NOT NULL,
-  description TEXT,
-  expense_date DATE NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 8. INCOME TABLE
-CREATE TABLE IF NOT EXISTS public.income (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  amount NUMERIC NOT NULL CHECK (amount >= 0),
-  source TEXT NOT NULL,
-  income_date DATE NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 9. JOB APPLICATIONS TABLE
-CREATE TABLE IF NOT EXISTS public.job_applications (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  company TEXT NOT NULL,
-  role TEXT NOT NULL,
-  location TEXT,
-  salary TEXT,
-  job_url TEXT,
-  status TEXT NOT NULL DEFAULT 'applied' CHECK (status IN ('saved', 'applied', 'screening', 'interview', 'technical', 'offer', 'rejected', 'withdrawn')),
-  applied_date DATE NOT NULL,
-  notes TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 10. FITNESS LOGS TABLE
 CREATE TABLE IF NOT EXISTS public.fitness_logs (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  date DATE NOT NULL,
-  workout_completed BOOLEAN NOT NULL DEFAULT false,
-  workout_type TEXT,
-  muscle_group TEXT,
-  exercise_name TEXT,
-  weight_lifted NUMERIC,
-  sets INTEGER,
-  reps INTEGER,
-  duration_minutes INTEGER DEFAULT 0,
-  notes TEXT,
-  weight NUMERIC,
-  height NUMERIC,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(), user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  date DATE NOT NULL, workout_completed BOOLEAN NOT NULL DEFAULT false, workout_type TEXT,
+  duration_minutes INTEGER DEFAULT 0, notes TEXT, weight NUMERIC, height NUMERIC,
+  muscle_group TEXT, exercise_name TEXT, weight_lifted NUMERIC, sets INTEGER, reps INTEGER, exercises JSONB,
+  created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now()
 );
-
--- Idempotent column additions for existing databases
+CREATE TABLE IF NOT EXISTS public.job_applications (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(), user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  company TEXT NOT NULL, role TEXT NOT NULL, location TEXT, salary TEXT, job_url TEXT,
+  status TEXT NOT NULL DEFAULT 'saved' CHECK (status IN ('saved','applied','screening','interview','technical','offer','rejected','withdrawn')),
+  applied_date DATE NOT NULL, notes TEXT, follow_up_date DATE, interview_date DATE,
+  created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS public.english_sessions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(), user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  date DATE NOT NULL, skill TEXT NOT NULL CHECK (skill IN ('speaking','listening','reading','writing')),
+  minutes INTEGER NOT NULL CHECK (minutes BETWEEN 1 AND 1440), topic TEXT NOT NULL DEFAULT '',
+  writing TEXT NOT NULL DEFAULT '', correction TEXT NOT NULL DEFAULT '', vocabulary TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS public.meal_plans (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(), user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  date DATE NOT NULL, slot TEXT NOT NULL CHECK (slot IN ('Breakfast','Lunch','Dinner','Snack')),
+  meal TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'planned' CHECK (status IN ('planned','followed','changed')), note TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS public.workout_routines (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(), user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  weekday INTEGER NOT NULL CHECK (weekday BETWEEN 0 AND 6), name TEXT NOT NULL, is_rest BOOLEAN NOT NULL DEFAULT false,
+  start_time TEXT NOT NULL DEFAULT '18:00', end_time TEXT NOT NULL DEFAULT '20:00', exercises JSONB NOT NULL DEFAULT '[]',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+-- Upgrade the existing tables; CREATE TABLE IF NOT EXISTS does not add columns.
+ALTER TABLE public.daily_logs ADD COLUMN IF NOT EXISTS screen_time_minutes INTEGER;
+ALTER TABLE public.daily_logs ADD COLUMN IF NOT EXISTS journal_corrected TEXT;
+ALTER TABLE public.fitness_logs ADD COLUMN IF NOT EXISTS height NUMERIC;
 ALTER TABLE public.fitness_logs ADD COLUMN IF NOT EXISTS muscle_group TEXT;
 ALTER TABLE public.fitness_logs ADD COLUMN IF NOT EXISTS exercise_name TEXT;
 ALTER TABLE public.fitness_logs ADD COLUMN IF NOT EXISTS weight_lifted NUMERIC;
 ALTER TABLE public.fitness_logs ADD COLUMN IF NOT EXISTS sets INTEGER;
 ALTER TABLE public.fitness_logs ADD COLUMN IF NOT EXISTS reps INTEGER;
-ALTER TABLE public.fitness_logs ADD COLUMN IF NOT EXISTS height NUMERIC;
-
--- 11. DAILY PLANS / TIME-BLOCK TASKS TABLE
-CREATE TABLE IF NOT EXISTS public.daily_plans (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  date DATE NOT NULL,
-  title TEXT NOT NULL,
-  category TEXT NOT NULL,
-  start_time TEXT NOT NULL,
-  end_time TEXT NOT NULL,
-  completed BOOLEAN NOT NULL DEFAULT false,
-  summary TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- ==============================================================================
--- INDEXES FOR MAXIMUM QUERY PERFORMANCE
--- ==============================================================================
-CREATE INDEX IF NOT EXISTS idx_habits_user_active ON public.habits(user_id, is_active);
-CREATE INDEX IF NOT EXISTS idx_habit_logs_user_date ON public.habit_logs(user_id, date);
-CREATE INDEX IF NOT EXISTS idx_daily_logs_user_date ON public.daily_logs(user_id, date);
-CREATE INDEX IF NOT EXISTS idx_goals_user_status ON public.goals(user_id, status);
-CREATE INDEX IF NOT EXISTS idx_journal_user_date ON public.journal_entries(user_id, entry_date);
-CREATE INDEX IF NOT EXISTS idx_expenses_user_date ON public.expenses(user_id, expense_date);
-CREATE INDEX IF NOT EXISTS idx_income_user_date ON public.income(user_id, income_date);
-CREATE INDEX IF NOT EXISTS idx_jobs_user_status ON public.job_applications(user_id, status);
-CREATE INDEX IF NOT EXISTS idx_fitness_user_date ON public.fitness_logs(user_id, date);
-CREATE INDEX IF NOT EXISTS idx_daily_plans_user_date ON public.daily_plans(user_id, date);
-
--- ==============================================================================
--- ROW LEVEL SECURITY (RLS) POLICIES
--- ==============================================================================
+ALTER TABLE public.fitness_logs ADD COLUMN IF NOT EXISTS exercises JSONB;
+ALTER TABLE public.job_applications ADD COLUMN IF NOT EXISTS follow_up_date DATE;
+ALTER TABLE public.job_applications ADD COLUMN IF NOT EXISTS interview_date DATE;
+-- Required by the app's ON CONFLICT upserts. These never discard duplicate data.
+CREATE UNIQUE INDEX IF NOT EXISTS lifeos_daily_date_unique ON public.daily_logs(user_id,date);
+CREATE UNIQUE INDEX IF NOT EXISTS lifeos_habit_date_unique ON public.habit_logs(user_id,habit_id,date);
+CREATE UNIQUE INDEX IF NOT EXISTS lifeos_routine_day_unique ON public.workout_routines(user_id,weekday);
+-- Every account can access only its own records. Keep auth.users intact.
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.habits ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.habit_logs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.daily_logs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.goals ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.journal_entries ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.expenses ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.income ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.job_applications ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.fitness_logs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.daily_plans ENABLE ROW LEVEL SECURITY;
-
--- 11. DAILY PLANS POLICIES
-CREATE POLICY "Users can manage their own daily plans"
-  ON public.daily_plans FOR ALL
-  TO authenticated
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
-
--- 1. PROFILES POLICIES
-CREATE POLICY "Users can view their own profile"
-  ON public.profiles FOR SELECT
-  TO authenticated
-  USING (auth.uid() = id);
-
-CREATE POLICY "Users can insert their own profile"
-  ON public.profiles FOR INSERT
-  TO authenticated
-  WITH CHECK (auth.uid() = id);
-
-CREATE POLICY "Users can update their own profile"
-  ON public.profiles FOR UPDATE
-  TO authenticated
-  USING (auth.uid() = id)
-  WITH CHECK (auth.uid() = id);
-
--- 2. HABITS POLICIES
-CREATE POLICY "Users can manage their own habits"
-  ON public.habits FOR ALL
-  TO authenticated
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
-
--- 3. HABIT LOGS POLICIES
-CREATE POLICY "Users can manage their own habit logs"
-  ON public.habit_logs FOR ALL
-  TO authenticated
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
-
--- 4. DAILY LOGS POLICIES
-CREATE POLICY "Users can manage their own daily logs"
-  ON public.daily_logs FOR ALL
-  TO authenticated
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
-
--- 5. GOALS POLICIES
-CREATE POLICY "Users can manage their own goals"
-  ON public.goals FOR ALL
-  TO authenticated
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
-
--- 6. JOURNAL ENTRIES POLICIES
-CREATE POLICY "Users can manage their own journal entries"
-  ON public.journal_entries FOR ALL
-  TO authenticated
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
-
--- 7. EXPENSES POLICIES
-CREATE POLICY "Users can manage their own expenses"
-  ON public.expenses FOR ALL
-  TO authenticated
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
-
--- 8. INCOME POLICIES
-CREATE POLICY "Users can manage their own income"
-  ON public.income FOR ALL
-  TO authenticated
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
-
--- 9. JOB APPLICATIONS POLICIES
-CREATE POLICY "Users can manage their own job applications"
-  ON public.job_applications FOR ALL
-  TO authenticated
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
-
--- 10. FITNESS LOGS POLICIES
-CREATE POLICY "Users can manage their own fitness logs"
-  ON public.fitness_logs FOR ALL
-  TO authenticated
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
-
--- ==============================================================================
--- TRIGGER FOR AUTOMATIC PROFILE CREATION ON AUTH SIGNUP
--- ==============================================================================
+DROP POLICY IF EXISTS own_profile ON public.profiles;
+CREATE POLICY own_profile ON public.profiles FOR ALL TO authenticated USING (auth.uid()=id) WITH CHECK (auth.uid()=id);
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.profiles TO authenticated;
+DO $$ DECLARE t TEXT; BEGIN
+  FOREACH t IN ARRAY ARRAY['habits','habit_logs','daily_logs','daily_plans','fitness_logs','job_applications','english_sessions','meal_plans','workout_routines'] LOOP
+    EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY',t);
+    EXECUTE format('DROP POLICY IF EXISTS own_records ON public.%I',t);
+    EXECUTE format('CREATE POLICY own_records ON public.%I FOR ALL TO authenticated USING (auth.uid()=user_id) WITH CHECK (auth.uid()=user_id)',t);
+    EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON public.%I TO authenticated',t);
+    EXECUTE format('CREATE INDEX IF NOT EXISTS %I ON public.%I(user_id)',t || '_user_idx',t);
+  END LOOP;
+END $$;
+-- Re-create profiles for existing accounts if rows were cleared, and for new signups.
 CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 BEGIN
-  INSERT INTO public.profiles (id, full_name, avatar_url, timezone, transformation_start_date, transformation_target_date)
-  VALUES (
-    NEW.id,
-    COALESCE(NEW.raw_user_meta_data->>'full_name', 'Member'),
-    NEW.raw_user_meta_data->>'avatar_url',
-    'UTC',
-    CURRENT_DATE,
-    (CURRENT_DATE + INTERVAL '3 years')::DATE
-  )
-  ON CONFLICT (id) DO NOTHING;
+  INSERT INTO public.profiles(id,full_name,timezone,onboarding_completed)
+  VALUES(NEW.id,COALESCE(NEW.raw_user_meta_data->>'full_name','Your space'),'Asia/Kolkata',true)
+  ON CONFLICT(id) DO NOTHING;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
+$$;
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+CREATE TRIGGER on_auth_user_created AFTER INSERT ON auth.users FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+INSERT INTO public.profiles(id,full_name,timezone,onboarding_completed)
+SELECT id,COALESCE(raw_user_meta_data->>'full_name','Your space'),'Asia/Kolkata',true FROM auth.users
+ON CONFLICT(id) DO NOTHING;
+NOTIFY pgrst, 'reload schema';
+COMMIT;

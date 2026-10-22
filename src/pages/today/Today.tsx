@@ -1,747 +1,732 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  Sparkles,
-  Calendar,
-  Save,
-  CheckCircle2,
-  Smile,
-  Frown,
-  Meh,
-  Award,
-  Clock,
   ArrowRight,
-  Smartphone,
-  Languages,
-  Copy,
-  CheckCheck,
+  BookOpen,
+  Check,
+  CheckCircle2,
+  Dumbbell,
+  Plus,
+  Pencil,
+  Trash2,
   Moon,
-  ChevronRight,
+  Briefcase,
 } from 'lucide-react'
-import { useHabits } from '../../hooks/useHabits'
-import { useDailyLog } from '../../hooks/useDailyLog'
-import { usePlanning } from '../../hooks/usePlanning'
-import { getTodayString, formatLongDate, CATEGORY_METADATA } from '../../lib/dateUtils'
+import { useRecords } from '../../features/life/data'
 import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardContent,
-  Button,
-  Textarea,
-  Checkbox,
-  ProgressBar,
-  Badge,
-  Modal,
-} from '../../components/ui'
-import type { HabitCategory } from '../../types'
+  shiftDay,
+  recommendedSkill,
+  habitDone,
+  workoutSessions,
+} from '../../features/life/helpers'
+import {
+  DataNotice,
+  DayPicker,
+  Dialog,
+  Empty,
+  Field,
+  Form,
+  Panel,
+  PageIntro,
+  dayLabel,
+  ignoreHandled,
+  textValue,
+  useDay,
+} from '../../features/life/ui'
+import type { Habit, PlannedTask } from '../../types'
+import { Timetable } from '../../features/life/Timetable'
 
 export function Today() {
-  const todayStr = getTodayString()
-
-  const {
-    activeHabits,
-    todayLogsMap,
-    todayScore,
-    todayCompletedCount,
-    toggleHabit,
-    isLoading: habitsLoading,
-  } = useHabits()
-
-  const { dailyLog, saveDailyLog, isSaving } = useDailyLog(todayStr)
-  const {
-    tasks: plannedTasks,
-    totalTasks,
-    completedTasks,
-    progressPercent: planProgress,
-    toggleTask,
-  } = usePlanning(todayStr)
-
-  // Right-side drawer modal state
-  const [isReviewDrawerOpen, setIsReviewDrawerOpen] = useState(false)
-
-  // Daily reflection state
-  const [mood, setMood] = useState<number>(4)
-  const [screenHours, setScreenHours] = useState('')
-  const [screenMinutes, setScreenMinutes] = useState('')
-  const [accomplishments, setAccomplishments] = useState('')
-  const [wentWrong, setWentWrong] = useState('')
-  const [improveTomorrow, setImproveTomorrow] = useState('')
-  const [journal, setJournal] = useState('')
-  const [journalCorrected, setJournalCorrected] = useState('')
-  const [isComparingJournal, setIsComparingJournal] = useState(false)
-
-  // Sync existing daily log data
-  useEffect(() => {
-    if (dailyLog) {
-      if (dailyLog.mood != null) setMood(dailyLog.mood)
-      if (dailyLog.screen_time_minutes != null) {
-        const h = Math.floor(dailyLog.screen_time_minutes / 60)
-        const m = dailyLog.screen_time_minutes % 60
-        setScreenHours(h.toString())
-        setScreenMinutes(m.toString())
-      }
-      if (dailyLog.accomplishments) setAccomplishments(dailyLog.accomplishments)
-      if (dailyLog.went_wrong) setWentWrong(dailyLog.went_wrong)
-      if (dailyLog.improve_tomorrow) setImproveTomorrow(dailyLog.improve_tomorrow)
-      if (dailyLog.journal) setJournal(dailyLog.journal)
-      if (dailyLog.journal_corrected) setJournalCorrected(dailyLog.journal_corrected)
-    }
-  }, [dailyLog])
-
-  // Computed total minutes for display and saving
-  const computedScreenMinutes =
-    screenHours !== '' || screenMinutes !== ''
-      ? (parseInt(screenHours, 10) || 0) * 60 + (parseInt(screenMinutes, 10) || 0)
-      : null
-
-  const handleSaveDay = async (e: React.FormEvent) => {
-    e.preventDefault()
-    await saveDailyLog({
-      mood,
-      daily_score: todayScore,
-      screen_time_minutes: computedScreenMinutes,
-      accomplishments,
-      went_wrong: wentWrong,
-      improve_tomorrow: improveTomorrow,
-      journal,
-      journal_corrected: journalCorrected,
-    })
-    setIsReviewDrawerOpen(false)
-  }
-
-  // Group habits by category for mission structure
-  const habitsByCategory = activeHabits.reduce((acc, habit) => {
-    if (!acc[habit.category]) acc[habit.category] = []
-    acc[habit.category].push(habit)
-    return acc
-  }, {} as Record<HabitCategory, typeof activeHabits>)
-
-  const categories = Object.keys(habitsByCategory) as HabitCategory[]
-
-  const moodOptions = [
-    { value: 1, label: 'Difficult', icon: <Frown className="w-5 h-5 text-rose-400" /> },
-    { value: 2, label: 'Challenging', icon: <Frown className="w-5 h-5 text-amber-400" /> },
-    { value: 3, label: 'Neutral', icon: <Meh className="w-5 h-5 text-zinc-400" /> },
-    { value: 4, label: 'Solid / Good', icon: <Smile className="w-5 h-5 text-emerald-400" /> },
-    { value: 5, label: 'Peak Flow', icon: <Award className="w-5 h-5 text-indigo-400" /> },
-  ]
-
-  const selectedMoodObj = moodOptions.find((m) => m.value === mood)
-  const isReviewCompleted = Boolean(
-    dailyLog && (dailyLog.mood != null || dailyLog.accomplishments || dailyLog.journal)
+  const { date, today, setDate } = useDay()
+  return <TodayContent key={date} date={date} today={today} setDate={setDate} />
+}
+function TodayContent({
+  date,
+  today,
+  setDate,
+}: {
+  date: string
+  today: string
+  setDate: (d: string) => void
+}) {
+  const tasks = useRecords('daily_plans'),
+    english = useRecords('english_sessions'),
+    fitness = useRecords('fitness_logs')
+  const habits = useRecords('habits'),
+    habitLogs = useRecords('habit_logs'),
+    daily = useRecords('daily_logs')
+  const jobs = useRecords('job_applications'),
+    routines = useRecords('workout_routines'),
+    meals = useRecords('meal_plans')
+  const [taskEditor, setTaskEditor] = useState<Partial<PlannedTask> | null>(
+    null,
   )
-
+  const [manageHabits, setManageHabits] = useState(false)
+  const [habitEditor, setHabitEditor] = useState<Partial<Habit> | null>(null)
+  const [deleteTask, setDeleteTask] = useState<string | null>(null)
+  const selectedTasks = tasks.rows
+    .filter((t) => t.date === date && t.category !== 'schedule')
+    .sort((a, b) => a.start_time.localeCompare(b.start_time))
+  const review = daily.rows.find((l) => l.date === date)
+  const practice = english.rows.filter((s) => s.date === date)
+  const englishDone = practice.length > 0 || !!review?.journal?.trim()
+  const sessions = workoutSessions(fitness.rows.filter((w) => w.date === date))
+  const weekday = new Date(date + 'T12:00:00').getDay()
+  const routine = routines.rows.find((r) => r.weekday === weekday)
+  const rest = routine?.is_rest ?? weekday === 0
+  const extras = habits.rows.filter(
+    (h) => !['english', 'fitness'].includes(h.category),
+  )
+  const activeHabits = extras.filter((h) => h.is_active)
+  const dueJobs = jobs.rows.filter(
+    (j) =>
+      !['rejected', 'withdrawn'].includes(j.status) &&
+      ((j.follow_up_date && j.follow_up_date <= date) ||
+        j.interview_date === date),
+  )
+  const future = date > today
+  const weekStart = shiftDay(today, -6)
+  const englishDates = new Set([
+    ...english.rows
+      .filter((s) => s.date >= weekStart && s.date <= today)
+      .map((s) => s.date),
+    ...daily.rows
+      .filter(
+        (s) => s.date >= weekStart && s.date <= today && s.journal?.trim(),
+      )
+      .map((s) => s.date),
+  ])
+  const weeklyWorkouts = workoutSessions(
+    fitness.rows.filter((s) => s.date >= weekStart && s.date <= today),
+  ).length
+  const selectedMeals = meals.rows.filter((m) => m.date === date)
+  async function toggleHabit(h: Habit) {
+    const done = habitDone(h, habitLogs.rows, date)
+    const existing = habitLogs.rows
+      .filter(
+        (l) =>
+          l.habit_id === h.id &&
+          l.completed &&
+          (h.frequency === 'daily'
+            ? l.date === date
+            : l.date <= date &&
+              l.date >= shiftDay(date, -(weekday === 0 ? 6 : weekday - 1))),
+      )
+      .sort((a, b) => b.date.localeCompare(a.date))[0]
+    await habitLogs.save(
+      done && existing
+        ? { ...existing, completed: false }
+        : { habit_id: h.id, date, completed: true, value: 1 },
+    )
+  }
   return (
-    <div className="space-y-6 max-w-6xl mx-auto pb-12 animate-in fade-in duration-300">
-      {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-zinc-800/80">
-        <div>
-          <div className="flex items-center gap-2 text-xs font-semibold text-indigo-400 uppercase tracking-wider mb-1">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Daily Execution Workspace</span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-zinc-100 font-heading tracking-tight">
-            Today's Mission
-          </h1>
-          <p className="text-xs sm:text-sm text-zinc-400 flex items-center gap-2 mt-1">
-            <Calendar className="w-4 h-4 text-zinc-500" />
-            {formatLongDate(todayStr)}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          {/* How was today? CTA Button */}
-          <Button
-            variant="primary"
-            size="md"
-            onClick={() => setIsReviewDrawerOpen(true)}
-            leftIcon={<Moon className="w-4 h-4 text-indigo-200" />}
-            className="shadow-lg shadow-indigo-500/20"
-          >
-            How was today?
-          </Button>
-
-          {/* Live Score Banner */}
-          <div className="flex items-center gap-4 p-3 sm:p-4 rounded-2xl bg-zinc-900/90 border border-zinc-800/80 shadow-md">
-            <div>
-              <span className="text-[11px] uppercase tracking-wider text-zinc-400 font-semibold block">
-                Day Score
-              </span>
-              <div className="flex items-baseline gap-1 mt-0.5">
-                <span className="text-2xl font-black font-heading text-zinc-100">{todayScore}</span>
-                <span className="text-xs text-zinc-500">/ 100</span>
-              </div>
-            </div>
-            <div className="w-20 sm:w-24">
-              <ProgressBar
-                value={todayScore}
-                size="sm"
-                color={todayScore >= 80 ? 'emerald' : todayScore >= 50 ? 'indigo' : 'amber'}
-              />
-              <span className="text-[10px] text-zinc-400 mt-1 block text-right font-mono">
-                {todayCompletedCount}/{activeHabits.length}
-              </span>
-            </div>
-
-            {(dailyLog?.screen_time_minutes != null || computedScreenMinutes !== null) && (
-              <div className="hidden sm:flex flex-col border-l border-zinc-800/80 pl-4">
-                <span className="text-[11px] uppercase tracking-wider text-zinc-400 font-semibold block">
-                  Screen Time
-                </span>
-                <div className="flex items-center gap-1.5 mt-0.5">
-                  <Smartphone className="w-3.5 h-3.5 text-indigo-400" />
-                  <span className="text-sm font-bold text-zinc-100 font-mono">
-                    {Math.floor((dailyLog?.screen_time_minutes ?? computedScreenMinutes ?? 0) / 60)}h{' '}
-                    {(dailyLog?.screen_time_minutes ?? computedScreenMinutes ?? 0) % 60}m
-                  </span>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Evening Review Status Card (Click to open right-side modal) */}
-      <div
-        onClick={() => setIsReviewDrawerOpen(true)}
-        className={`group cursor-pointer p-4 sm:p-5 rounded-2xl border transition-all duration-200 ${
-          isReviewCompleted
-            ? 'bg-gradient-to-r from-emerald-950/20 via-zinc-900/80 to-zinc-900/90 border-emerald-500/30 hover:border-emerald-500/50 shadow-md'
-            : 'bg-gradient-to-r from-indigo-950/30 via-zinc-900/80 to-zinc-900/90 border-indigo-500/30 hover:border-indigo-500/50 shadow-lg'
-        }`}
+    <>
+      <PageIntro
+        eyebrow="YOUR DAILY SPACE"
+        title={
+          future
+            ? 'Make room for tomorrow.'
+            : date < today
+              ? 'A day to look back on.'
+              : 'A little better, every day.'
+        }
+        description={
+          future
+            ? 'A small plan is enough. Choose what matters.'
+            : 'English first. A few priorities. One day at a time.'
+        }
       >
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3.5">
-            <div
-              className={`p-3 rounded-2xl ${
-                isReviewCompleted
-                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                  : 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 animate-pulse'
-              }`}
-            >
-              <Moon className="w-5 h-5" />
-            </div>
+        <DayPicker date={date} today={today} onChange={setDate} />
+      </PageIntro>
+      <DataNotice
+        queries={[
+          tasks,
+          english,
+          fitness,
+          habits,
+          habitLogs,
+          daily,
+          jobs,
+          routines,
+          meals,
+        ]}
+      />
+      <div className="date-caption">{dayLabel(date)}</div>
+      <div className="two-col">
+        <div className="stack">
+          <section className="feature-card">
             <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm sm:text-base font-bold text-zinc-100 font-heading">
-                  How was today? — Evening Review
-                </h3>
-                {isReviewCompleted ? (
-                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3" /> Reviewed
-                  </span>
-                ) : (
-                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/30">
-                    Pending
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-zinc-400 mt-0.5">
-                {isReviewCompleted
-                  ? `Logged state: ${selectedMoodObj?.label || 'Solid'} (${mood}/5) • ${
-                      computedScreenMinutes != null
-                        ? `Screen: ${Math.floor(computedScreenMinutes / 60)}h ${computedScreenMinutes % 60}m • `
-                        : ''
-                    }Click to view or edit reflection`
-                  : 'Take 2 minutes to record your mood, screen time, daily wins, and English journal.'}
+              <div className="eyebrow">01 / YOUR FIRST PRIORITY</div>
+              <h2>
+                {englishDone
+                  ? 'You made time for English.'
+                  : 'Find your voice.'}
+              </h2>
+              <p>
+                {englishDone
+                  ? `${practice.reduce((s, p) => s + p.minutes, 0) || 'Writing'}${practice.length ? ' minutes practiced' : ' saved'}. Every small session counts.`
+                  : `A little ${recommendedSkill(date)} practice today. Choose a short session or take your time.`}
               </p>
+              <Link className="btn" to={'/english?date=' + date}>
+                {englishDone
+                  ? 'View your practice'
+                  : future
+                    ? 'See practice plan'
+                    : 'Practice English'}
+                <ArrowRight size={14} />
+              </Link>
             </div>
-          </div>
-
-          <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
-            <span className="text-xs font-semibold text-indigo-400 group-hover:text-indigo-300 flex items-center gap-1">
-              {isReviewCompleted ? 'Edit Review' : 'Open Review Modal'}
-              <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Workspace Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Scheduled Time-Blocks Column */}
-        {totalTasks > 0 && (
-          <div className="lg:col-span-5 space-y-4">
-            <Card className="p-5 bg-zinc-900/90 border-zinc-800 shadow-md space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="flex items-center gap-1.5 text-xs font-semibold text-indigo-400">
-                    <Clock className="w-3.5 h-3.5" />
-                    <span>Today's Time-Blocks</span>
-                  </div>
-                  <h3 className="text-sm font-bold text-zinc-100 font-heading mt-0.5">
-                    Schedule Execution ({completedTasks}/{totalTasks})
-                  </h3>
-                </div>
-                <Link
-                  to="/planning"
-                  className="text-xs text-indigo-400 hover:text-indigo-300 font-semibold flex items-center gap-1"
-                >
-                  Edit Schedule <ArrowRight className="w-3 h-3" />
-                </Link>
-              </div>
-
-              <ProgressBar
-                value={planProgress}
-                size="sm"
-                color={planProgress === 100 ? 'emerald' : 'indigo'}
-                showLabel
-              />
-
-              <div className="space-y-1.5 pt-1">
-                {plannedTasks.map((t) => (
-                  <div
-                    key={t.id}
-                    onClick={() => toggleTask(t.id, !t.completed)}
-                    className={`flex items-center justify-between p-2.5 rounded-xl border transition-all cursor-pointer ${
-                      t.completed
-                        ? 'bg-zinc-800/40 border-emerald-500/30'
-                        : 'bg-zinc-950/40 border-zinc-800/80 hover:border-zinc-700'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <Checkbox checked={t.completed} onChange={(c) => toggleTask(t.id, c)} />
-                      <span
-                        className={`text-xs font-semibold truncate ${
-                          t.completed ? 'line-through text-zinc-400 opacity-80' : 'text-zinc-200'
-                        }`}
-                      >
-                        {t.title}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <Badge variant="default" size="sm">
-                        {t.category}
-                      </Badge>
-                      <span className="text-[11px] font-mono text-zinc-400">
-                        {t.start_time}–{t.end_time}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          </div>
-        )}
-
-        {/* Habits & Tasks Column */}
-        <div className={totalTasks > 0 ? 'lg:col-span-7' : 'lg:col-span-12'}>
-          <Card className="p-6 bg-zinc-900/80 border-zinc-800/80 shadow-lg">
-            <CardHeader className="p-0 pb-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Habits & Tasks</CardTitle>
-                  <p className="text-xs text-zinc-400 mt-0.5">
-                    Execute today's system. One win at a time.
-                  </p>
-                </div>
-                <Badge variant="info" size="sm">
-                  {todayCompletedCount}/{activeHabits.length} Completed
-                </Badge>
-              </div>
-            </CardHeader>
-
-            <CardContent className="p-0 space-y-5">
-              {habitsLoading ? (
-                <div className="space-y-3">
-                  <div className="h-10 bg-zinc-800/40 rounded-xl animate-pulse" />
-                  <div className="h-10 bg-zinc-800/40 rounded-xl animate-pulse" />
-                </div>
-              ) : categories.length === 0 ? (
-                <div className="text-center py-8 text-zinc-400 text-xs">
-                  No active habits. Create habits from the Habits page or Quick Action.
-                </div>
-              ) : (
-                categories.map((catKey) => {
-                  const meta = CATEGORY_METADATA[catKey]
-                  const items = habitsByCategory[catKey] || []
-
-                  return (
-                    <div key={catKey} className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="default" size="sm">
-                          {meta?.label || catKey}
-                        </Badge>
-                      </div>
-
-                      <div className="space-y-1.5 pl-1">
-                        {items.map((habit) => {
-                          const isCompleted = Boolean(todayLogsMap.get(habit.id))
-
-                          return (
-                            <div
-                              key={habit.id}
-                              onClick={() =>
-                                toggleHabit(habit.id, !isCompleted, todayStr, habit.target_value)
-                              }
-                              className={`flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer ${
-                                isCompleted
-                                  ? 'bg-zinc-800/40 border-emerald-500/30 text-zinc-200'
-                                  : 'bg-zinc-950/40 border-zinc-800/70 hover:border-zinc-700'
-                              }`}
-                            >
-                              <div className="flex items-center gap-3">
-                                <Checkbox
-                                  checked={isCompleted}
-                                  onChange={(c) =>
-                                    toggleHabit(habit.id, c, todayStr, habit.target_value)
-                                  }
-                                />
-                                <div>
-                                  <span
-                                    className={`text-sm font-semibold block ${
-                                      isCompleted
-                                        ? 'line-through text-zinc-400 opacity-80'
-                                        : 'text-zinc-100'
-                                    }`}
-                                  >
-                                    {habit.name}
-                                  </span>
-                                  {habit.description && (
-                                    <span className="text-xs text-zinc-400 block">
-                                      {habit.description}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-
-                              <span className="text-[11px] font-mono text-zinc-400 shrink-0">
-                                {isCompleted ? '✓ Done' : `${habit.target_value} ${habit.unit}`}
-                              </span>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )
-                })
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-
-      {/* "HOW WAS TODAY?" RIGHT-SIDE SLIDE-OVER DRAWER MODAL */}
-      <Modal
-        isOpen={isReviewDrawerOpen}
-        onClose={() => setIsReviewDrawerOpen(false)}
-        title="How was today?"
-        description="Close out your day with an honest 2-minute review & deliberate language practice"
-        position="right"
-        maxWidth="xl"
-      >
-        <form onSubmit={handleSaveDay} className="space-y-5 pb-4">
-          {/* Mood Selector */}
-          <div>
-            <label className="text-xs font-semibold text-zinc-300 block mb-2">
-              Today's State & Mood
-            </label>
-            <div className="grid grid-cols-5 gap-2">
-              {moodOptions.map((opt) => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => setMood(opt.value)}
-                  className={`flex flex-col items-center justify-center p-2.5 rounded-xl border transition-all ${
-                    mood === opt.value
-                      ? 'bg-indigo-600/25 border-indigo-500/70 shadow-sm ring-1 ring-indigo-500/30'
-                      : 'bg-zinc-950/40 border-zinc-800 hover:border-zinc-700'
-                  }`}
-                >
-                  {opt.icon}
-                  <span className="text-[10px] font-semibold text-zinc-300 mt-1">
-                    {opt.value}/5
-                  </span>
-                  <span className="text-[9px] text-zinc-500">{opt.label}</span>
-                </button>
-              ))}
+            <div className="feature-art">
+              <BookOpen size={39} />
             </div>
-          </div>
-
-          {/* Screen Time Section */}
-          <div className="p-3.5 rounded-2xl bg-zinc-950/60 border border-zinc-800/90 space-y-2.5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400">
-                  <Smartphone className="w-4 h-4" />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-zinc-200 block leading-tight">
-                    Screen Time
-                  </label>
-                  <span className="text-[11px] text-zinc-500">
-                    Phone & device screen usage
-                  </span>
-                </div>
-              </div>
-
-              {/* Digital Discipline / Focus Indicator */}
-              {computedScreenMinutes !== null ? (
-                <span
-                  className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
-                    computedScreenMinutes <= 120
-                      ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
-                      : computedScreenMinutes <= 240
-                      ? 'bg-indigo-500/10 text-indigo-300 border-indigo-500/30'
-                      : computedScreenMinutes <= 360
-                      ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
-                      : 'bg-rose-500/10 text-rose-300 border-rose-500/30'
-                  }`}
-                >
-                  {computedScreenMinutes <= 120
-                    ? '🟢 Minimal / Deep Focus'
-                    : computedScreenMinutes <= 240
-                    ? '🔵 Controlled'
-                    : computedScreenMinutes <= 360
-                    ? '🟡 Moderate'
-                    : '🔴 High Screen Time'}
-                </span>
-              ) : (
-                <span className="text-[11px] text-zinc-500">Optional</span>
-              )}
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="relative">
-                <input
-                  type="number"
-                  min={0}
-                  max={24}
-                  placeholder="0"
-                  value={screenHours}
-                  onChange={(e) => setScreenHours(e.target.value)}
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 pr-12 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-indigo-500 transition-colors font-mono"
-                />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-400 pointer-events-none font-medium">
-                  hours
-                </span>
-              </div>
-
-              <div className="relative">
-                <input
-                  type="number"
-                  min={0}
-                  max={59}
-                  placeholder="0"
-                  value={screenMinutes}
-                  onChange={(e) => setScreenMinutes(e.target.value)}
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 pr-12 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-indigo-500 transition-colors font-mono"
-                />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-400 pointer-events-none font-medium">
-                  mins
-                </span>
-              </div>
-            </div>
-
-            {/* Quick Preset Badges */}
-            <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-              <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold mr-1">
-                Presets:
+          </section>
+          <Panel
+            title="Your priorities"
+            subtitle="Keep it to three things that matter."
+            action={
+              <span className="pill">
+                {selectedTasks.filter((t) => t.completed).length} /{' '}
+                {selectedTasks.length} done
               </span>
-              {[
-                { label: '1h 30m', h: '1', m: '30' },
-                { label: '2h 30m', h: '2', m: '30' },
-                { label: '4h 00m', h: '4', m: '0' },
-                { label: '5h 30m', h: '5', m: '30' },
-                { label: '7h+', h: '7', m: '0' },
-              ].map((preset) => (
-                <button
-                  key={preset.label}
-                  type="button"
-                  onClick={() => {
-                    setScreenHours(preset.h)
-                    setScreenMinutes(preset.m)
-                  }}
-                  className="text-[10px] font-medium px-2 py-0.5 rounded-lg bg-zinc-900 border border-zinc-800/80 text-zinc-400 hover:text-zinc-200 hover:border-zinc-700 hover:bg-zinc-800/60 transition-all cursor-pointer"
-                >
-                  {preset.label}
-                </button>
-              ))}
-              {(screenHours !== '' || screenMinutes !== '') && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setScreenHours('')
-                    setScreenMinutes('')
-                  }}
-                  className="text-[10px] text-rose-400 hover:text-rose-300 ml-auto font-medium cursor-pointer"
-                >
-                  Clear
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Accomplished */}
-          <Textarea
-            label="What did I accomplish today?"
-            placeholder="Key wins, finished tasks, progress made..."
-            rows={2}
-            value={accomplishments}
-            onChange={(e) => setAccomplishments(e.target.value)}
-          />
-
-          {/* Went Wrong */}
-          <Textarea
-            label="What went wrong or caused friction?"
-            placeholder="Distractions, procrastination, energy drops..."
-            rows={2}
-            value={wentWrong}
-            onChange={(e) => setWentWrong(e.target.value)}
-          />
-
-          {/* Improve Tomorrow */}
-          <Textarea
-            label="What will I improve tomorrow?"
-            placeholder="One specific adjustment to win tomorrow..."
-            rows={2}
-            value={improveTomorrow}
-            onChange={(e) => setImproveTomorrow(e.target.value)}
-          />
-
-          {/* Dual Journal: My Version & Corrected English Version */}
-          <div className="p-3.5 rounded-2xl bg-zinc-950/60 border border-zinc-800/90 space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1 border-b border-zinc-800/70">
-              <div className="flex items-center gap-2">
-                <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400">
-                  <Languages className="w-4 h-4" />
+            }
+          >
+            {!selectedTasks.length && (
+              <Empty>
+                What would make this a good day?
+                <br />
+                Add your first priority below.
+              </Empty>
+            )}
+            {selectedTasks.map((t) => (
+              <div
+                className={'task-row ' + (t.completed ? 'done' : '')}
+                key={t.id}
+              >
+                <input
+                  aria-label={'Complete ' + t.title}
+                  type="checkbox"
+                  disabled={tasks.busy || future}
+                  checked={t.completed}
+                  onChange={() =>
+                    ignoreHandled(tasks.save({ ...t, completed: !t.completed }))
+                  }
+                />
+                <div className="task-main">
+                  <strong>{t.title}</strong>
+                  {(t.start_time || t.summary) && (
+                    <p>
+                      {t.start_time &&
+                        `${t.start_time}${t.end_time ? ' – ' + t.end_time : ''}`}
+                      {t.summary && ` · ${t.summary}`}
+                    </p>
+                  )}
                 </div>
-                <div>
-                  <h4 className="text-xs font-bold text-zinc-100 flex items-center gap-1.5">
-                    <span>Daily English Journal & Correction</span>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-medium">
-                      Self-Improvement
-                    </span>
-                  </h4>
-                  <p className="text-[11px] text-zinc-400">
-                    Write in your own English, then observe corrections to spot mistakes
+                <button
+                  className="icon-btn"
+                  aria-label={'Edit ' + t.title}
+                  onClick={() => setTaskEditor(t)}
+                >
+                  <Pencil size={13} />
+                </button>
+                <button
+                  className="icon-btn"
+                  aria-label={'Delete ' + t.title}
+                  onClick={() => setDeleteTask(t.id)}
+                >
+                  <Trash2 size={13} />
+                </button>
+              </div>
+            ))}
+            <button
+              className="text-link view-all"
+              disabled={
+                selectedTasks.length >= 3 || tasks.isLoading || !!tasks.error
+              }
+              onClick={() => setTaskEditor({ date })}
+            >
+              <Plus size={14} />
+              {selectedTasks.length >= 3
+                ? 'Your three priorities are set'
+                : 'Add a priority'}
+            </button>
+          </Panel>
+          <Timetable
+            rows={tasks.rows.filter((t) => t.date === date)}
+            busy={tasks.busy || tasks.isLoading || !!tasks.error}
+            future={future}
+            onEdit={(task) => setTaskEditor({ ...task, date })}
+            onToggle={(task) =>
+              ignoreHandled(tasks.save({ ...task, completed: !task.completed }))
+            }
+            onRemove={setDeleteTask}
+          />
+          <Panel
+            title="Small habits"
+            subtitle="Two small commitments. Plenty of room to grow."
+            action={
+              <button
+                className="text-link"
+                onClick={() => setManageHabits(true)}
+              >
+                Manage
+              </button>
+            }
+          >
+            {!activeHabits.length && (
+              <Empty>
+                Choose up to two habits you want to build.
+                <br />
+                English and gym are already tracked for you.
+              </Empty>
+            )}
+            {activeHabits.slice(0, 2).map((h) => (
+              <div className="task-row" key={h.id}>
+                <input
+                  type="checkbox"
+                  checked={habitDone(h, habitLogs.rows, date)}
+                  disabled={future || habitLogs.busy}
+                  aria-label={h.name}
+                  onChange={() => ignoreHandled(toggleHabit(h))}
+                />
+                <div className="task-main">
+                  <strong>{h.name}</strong>
+                  <p>
+                    {h.frequency === 'weekly'
+                      ? 'Once this week'
+                      : 'A little each day'}
                   </p>
                 </div>
               </div>
-
-              <div className="flex items-center gap-2">
-                {journal.trim() && !journalCorrected.trim() && (
-                  <button
-                    type="button"
-                    onClick={() => setJournalCorrected(journal)}
-                    className="text-[10px] font-semibold text-indigo-400 hover:text-indigo-300 flex items-center gap-1 bg-indigo-500/10 hover:bg-indigo-500/20 px-2 py-1 rounded-lg border border-indigo-500/20 transition-all cursor-pointer"
-                    title="Copy original draft into corrected field to start refining"
-                  >
-                    <Copy className="w-3 h-3" />
-                    <span>Copy Draft to Edit</span>
-                  </button>
-                )}
-
-                {journal.trim() && journalCorrected.trim() && (
-                  <button
-                    type="button"
-                    onClick={() => setIsComparingJournal(!isComparingJournal)}
-                    className={`text-[10px] font-semibold flex items-center gap-1 px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${
-                      isComparingJournal
-                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm'
-                        : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:text-zinc-200'
-                    }`}
-                  >
-                    <CheckCheck className="w-3.5 h-3.5" />
-                    <span>{isComparingJournal ? 'Hide Comparison' : 'Compare Versions'}</span>
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Side-by-side Comparative Diff Preview */}
-            {isComparingJournal && journal.trim() && journalCorrected.trim() && (
-              <div className="p-3 rounded-xl bg-zinc-900/90 border border-indigo-500/30 space-y-2 animate-in fade-in duration-200">
-                <div className="flex items-center justify-between text-[11px] text-indigo-300 font-medium">
-                  <span>Side-by-Side Review</span>
-                  <span className="text-[10px] text-zinc-400">
-                    Notice grammar, vocabulary & sentence structure
-                  </span>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
-                  <div className="p-2.5 rounded-lg bg-zinc-950/80 border border-zinc-800 text-zinc-300 leading-relaxed">
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-amber-400/90 mb-1 flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
-                      <span>My Version (Original Draft)</span>
-                    </div>
-                    <p className="whitespace-pre-wrap">{journal}</p>
-                  </div>
-                  <div className="p-2.5 rounded-lg bg-emerald-950/20 border border-emerald-500/30 text-emerald-200 leading-relaxed">
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 mb-1 flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                      <span>Corrected Version (Target English)</span>
-                    </div>
-                    <p className="whitespace-pre-wrap">{journalCorrected}</p>
-                  </div>
-                </div>
-              </div>
+            ))}
+            {activeHabits.length > 2 && (
+              <button
+                className="text-link view-all"
+                onClick={() => setManageHabits(true)}
+              >
+                View {activeHabits.length - 2} more existing habits
+              </button>
             )}
-
-            {/* Input 1: My Version (Raw / Original Draft) */}
-            <div className="space-y-1">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-semibold text-zinc-300 flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
-                  <span>1. My Journal (Your Version / Raw Draft)</span>
-                </label>
-                <span className="text-[10px] font-mono text-zinc-500">
-                  {journal.trim() ? `${journal.trim().split(/\s+/).length} words` : '0 words'}
+          </Panel>
+          <Panel
+            title={future ? 'A note for tomorrow' : 'Close the day'}
+            subtitle={
+              future
+                ? 'Leave yourself a gentle starting point.'
+                : 'What did you do, build, or learn? A few lines are enough.'
+            }
+            action={<Moon size={17} />}
+          >
+            {!daily.isLoading && !daily.error && (
+              <Form
+                key={review?.id || date}
+                submit={future ? 'Save tomorrow’s note' : 'Save my day'}
+                busy={daily.busy}
+                onSubmit={async (data) => {
+                  await daily.save({
+                    ...review,
+                    date,
+                    accomplishments: textValue(data, 'accomplishments'),
+                    improve_tomorrow: textValue(data, 'improve_tomorrow'),
+                    journal: future
+                      ? review?.journal
+                      : textValue(data, 'journal'),
+                  })
+                }}
+              >
+                <Field
+                  label={
+                    future ? 'What would help tomorrow?' : 'What I did today'
+                  }
+                >
+                  <textarea
+                    name="accomplishments"
+                    rows={2}
+                    placeholder={
+                      future
+                        ? 'Start with one small thing…'
+                        : 'Worked on my project, practiced a conversation…'
+                    }
+                    defaultValue={review?.accomplishments || ''}
+                  />
+                </Field>
+                {!future && (
+                  <details>
+                    <summary>Write a few sentences in English</summary>
+                    <Field
+                      label="My English journal"
+                      hint="This also counts as today’s writing practice."
+                    >
+                      <textarea
+                        name="journal"
+                        rows={3}
+                        defaultValue={review?.journal || ''}
+                        placeholder="Today I learned…"
+                      />
+                    </Field>
+                  </details>
+                )}
+                <Field
+                  label={
+                    future ? 'A reminder for myself' : 'One thing for tomorrow'
+                  }
+                >
+                  <input
+                    name="improve_tomorrow"
+                    defaultValue={review?.improve_tomorrow || ''}
+                    placeholder="Keep it small and specific"
+                  />
+                </Field>
+              </Form>
+            )}
+          </Panel>
+        </div>
+        <div className="stack">
+          <Panel
+            title="Move & nourish"
+            subtitle={
+              routine?.name ||
+              (rest ? 'A day to recover' : 'Your evening gym session')
+            }
+            action={<Dumbbell size={18} />}
+          >
+            <div className="check-status">
+              {sessions.length ? (
+                <CheckCircle2 size={19} />
+              ) : (
+                <span className="pill warm">
+                  {rest
+                    ? 'REST DAY'
+                    : `${routine?.start_time || '18:00'} – ${routine?.end_time || '20:00'}`}
                 </span>
-              </div>
-              <Textarea
-                placeholder="Write freely in your own English without worrying about mistakes (e.g. what you did, learned, felt today)..."
-                rows={3}
-                value={journal}
-                onChange={(e) => setJournal(e.target.value)}
-              />
+              )}
+              {sessions.length > 0 && <span>Workout logged</span>}
             </div>
-
-            {/* Input 2: Corrected Journal (Polished Version) */}
-            <div className="space-y-1">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-semibold text-zinc-300 flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                  <span>2. Corrected Journal (Polished English & Feedback)</span>
-                </label>
-                <span className="text-[10px] font-mono text-zinc-500">
-                  {journalCorrected.trim()
-                    ? `${journalCorrected.trim().split(/\s+/).length} words`
-                    : '0 words'}
-                </span>
-              </div>
-              <Textarea
-                placeholder="Paste or write the improved version here (from grammar tool, AI, mentor, or self-correction) to observe and learn from mistakes..."
-                rows={3}
-                value={journalCorrected}
-                onChange={(e) => setJournalCorrected(e.target.value)}
-              />
+            <p className="muted" style={{ marginTop: 14 }}>
+              {rest
+                ? 'Rest is part of your routine.'
+                : routine?.exercises.length
+                  ? `${routine.exercises.length} ${routine.exercises.length === 1 ? 'exercise' : 'exercises'} in your plan.`
+                  : 'Set up your routine, then record your session.'}
+            </p>
+            <Link className="text-link view-all" to={'/fitness?date=' + date}>
+              {sessions.length
+                ? 'View workout'
+                : rest
+                  ? 'View gym & food'
+                  : 'Open gym'}
+              <ArrowRight size={13} />
+            </Link>
+            <div
+              style={{
+                borderTop: '1px solid var(--line)',
+                marginTop: 18,
+                paddingTop: 16,
+              }}
+            >
+              <div className="eyebrow">ON THE MENU</div>
+              {selectedMeals.length ? (
+                selectedMeals.map((m) => (
+                  <div className="meal-row" key={m.id}>
+                    <span className="meal-label">{m.slot}</span>
+                    <span className="meal-body">{m.meal}</span>
+                    {m.status !== 'planned' && <Check size={13} />}
+                  </div>
+                ))
+              ) : (
+                <p className="muted" style={{ marginTop: 9 }}>
+                  A little planning makes meals easier.
+                </p>
+              )}
+              <Link
+                className="text-link view-all"
+                to={'/fitness?date=' + date + '#meals'}
+              >
+                Plan meals <ArrowRight size={13} />
+              </Link>
             </div>
-          </div>
-
-          <div className="pt-2 flex items-center gap-3">
-            <Button
-              type="button"
-              variant="ghost"
-              size="md"
-              onClick={() => setIsReviewDrawerOpen(false)}
-              className="flex-1 justify-center"
+          </Panel>
+          <Panel
+            title="Your next opportunity"
+            subtitle="Follow-ups and interviews"
+            action={<Briefcase size={17} />}
+          >
+            {dueJobs.length ? (
+              dueJobs.map((j) => (
+                <div className="session-row" key={j.id}>
+                  <strong>{j.company}</strong>
+                  <p>{j.role}</p>
+                  <p>
+                    {j.interview_date === date
+                      ? 'Interview today'
+                      : `Follow up · ${j.follow_up_date}`}
+                  </p>
+                  <Link className="text-link" to="/career">
+                    Open application <ArrowRight size={12} />
+                  </Link>
+                </div>
+              ))
+            ) : (
+              <p className="muted">
+                No follow-ups due. Add a job-search priority when you want to
+                make time for it.
+              </p>
+            )}
+            <Link className="text-link view-all" to="/career">
+              View jobs <ArrowRight size={13} />
+            </Link>
+          </Panel>
+          <Panel title="Little steps add up" subtitle="Your last seven days">
+            <div className="week-dots">
+              {Array.from({ length: 7 }, (_, i) => shiftDay(today, i - 6)).map(
+                (d) => (
+                  <div
+                    key={d}
+                    className={
+                      'week-dot ' +
+                      (englishDates.has(d) ? 'completed ' : '') +
+                      (d === today ? 'current' : '')
+                    }
+                  >
+                    <span>
+                      {englishDates.has(d) ? (
+                        <Check size={12} />
+                      ) : (
+                        new Date(d + 'T12:00:00').getDate()
+                      )}
+                    </span>
+                    {new Date(d + 'T12:00:00').toLocaleDateString('en', {
+                      weekday: 'short',
+                    })}
+                  </div>
+                ),
+              )}
+            </div>
+            <p className="muted">
+              English on{' '}
+              <strong>
+                {englishDates.size} {englishDates.size === 1 ? 'day' : 'days'}
+              </strong>{' '}
+              ·{' '}
+              <strong>
+                {weeklyWorkouts} gym{' '}
+                {weeklyWorkouts === 1 ? 'session' : 'sessions'}
+              </strong>
+            </p>
+            <p className="muted" style={{ marginTop: 12 }}>
+              Missed a day? You can start again today.
+            </p>
+          </Panel>
+          <button
+            className="btn secondary"
+            onClick={() => setDate(shiftDay(today, 1))}
+          >
+            Plan tomorrow <ArrowRight size={14} />
+          </button>
+        </div>
+      </div>
+      {taskEditor && (
+        <Dialog
+          title={
+            taskEditor.category === 'schedule'
+              ? taskEditor.id
+                ? 'Edit scheduled plan'
+                : 'Plan a time in your day'
+              : taskEditor.id
+                ? 'Edit priority'
+                : 'One thing that matters'
+          }
+          onClose={() => setTaskEditor(null)}
+        >
+          <Form
+            busy={tasks.busy}
+            onSubmit={async (data) => {
+              const title = textValue(data, 'title')
+              if (!title) throw new Error('Give this priority a name.')
+              const start = textValue(data, 'start'),
+                end = textValue(data, 'end')
+              if (taskEditor.category === 'schedule' && !start)
+                throw new Error('Choose a start time for your plan.')
+              if (end && (!start || end <= start))
+                throw new Error('Choose an end time after the start time.')
+              await tasks.save({
+                ...taskEditor,
+                date,
+                title,
+                category: taskEditor.category || 'personal',
+                start_time: start,
+                end_time: end,
+                completed: taskEditor.completed || false,
+                summary: textValue(data, 'summary'),
+              })
+              setTaskEditor(null)
+            }}
+          >
+            <Field
+              label={taskEditor.category === 'schedule' ? 'Plan' : 'Priority'}
             >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              variant="primary"
-              size="md"
-              className="flex-2 justify-center"
-              isLoading={isSaving}
-              leftIcon={<Save className="w-4 h-4" />}
-            >
-              Save Day Review
-            </Button>
-          </div>
-        </form>
-      </Modal>
-    </div>
+              <input
+                autoFocus
+                required
+                name="title"
+                defaultValue={taskEditor.title}
+                placeholder={
+                  taskEditor.category === 'schedule'
+                    ? 'Read a book'
+                    : 'Apply for one role'
+                }
+                maxLength={200}
+              />
+            </Field>
+            <div className="form-grid">
+              <Field
+                label={
+                  taskEditor.category === 'schedule'
+                    ? 'Start time'
+                    : 'Start time (optional)'
+                }
+              >
+                <input
+                  type="time"
+                  name="start"
+                  required={taskEditor.category === 'schedule'}
+                  defaultValue={taskEditor.start_time}
+                />
+              </Field>
+              <Field label="End time (optional)">
+                <input
+                  type="time"
+                  name="end"
+                  defaultValue={taskEditor.end_time}
+                />
+              </Field>
+            </div>
+            <p className="muted">
+              Plan for {dayLabel(date)}. At the start time, a reminder appears
+              in the header while the app is open. Times follow your device.
+            </p>
+            <Field label="Note or project link (optional)">
+              <input name="summary" defaultValue={taskEditor.summary || ''} />
+            </Field>
+          </Form>
+        </Dialog>
+      )}
+      {deleteTask && (
+        <Dialog title="Remove this plan?" onClose={() => setDeleteTask(null)}>
+          <Form
+            submit="Remove plan"
+            onCancel={() => setDeleteTask(null)}
+            onSubmit={async () => {
+              await tasks.remove(deleteTask)
+              setDeleteTask(null)
+            }}
+          >
+            <p className="muted">This removes only the selected task.</p>
+          </Form>
+        </Dialog>
+      )}
+      {manageHabits && (
+        <Dialog
+          title="Make a little room for habits"
+          onClose={() => setManageHabits(false)}
+        >
+          <p className="muted">
+            Keep two active extras. Your older habits are preserved here; pause
+            any you don’t need.
+          </p>
+          {extras.map((h) => (
+            <div className="task-row" key={h.id}>
+              <input
+                aria-label={'Complete ' + h.name}
+                type="checkbox"
+                checked={habitDone(h, habitLogs.rows, date)}
+                disabled={future || habitLogs.busy || !h.is_active}
+                onChange={() => ignoreHandled(toggleHabit(h))}
+              />
+              <div className="task-main">
+                <strong>{h.name}</strong>
+                <p>
+                  {h.frequency} · {h.is_active ? 'Active' : 'Paused'}
+                </p>
+              </div>
+              <button
+                className="text-link"
+                disabled={
+                  habits.busy || (!h.is_active && activeHabits.length >= 2)
+                }
+                onClick={() =>
+                  ignoreHandled(habits.save({ ...h, is_active: !h.is_active }))
+                }
+              >
+                {h.is_active ? 'Pause' : 'Resume'}
+              </button>
+              <button
+                className="icon-btn"
+                aria-label={'Edit ' + h.name}
+                onClick={() => {
+                  setManageHabits(false)
+                  setHabitEditor(h)
+                }}
+              >
+                <Pencil size={13} />
+              </button>
+            </div>
+          ))}
+          <button
+            className="btn view-all"
+            disabled={activeHabits.length >= 2}
+            onClick={() => {
+              setManageHabits(false)
+              setHabitEditor({})
+            }}
+          >
+            <Plus size={14} />
+            Add a habit
+          </button>
+        </Dialog>
+      )}
+      {habitEditor && (
+        <Dialog
+          title={habitEditor.id ? 'Edit habit' : 'Start small'}
+          onClose={() => setHabitEditor(null)}
+        >
+          <Form
+            onSubmit={async (data) => {
+              const name = textValue(data, 'name')
+              if (!name) throw new Error('Give your habit a name.')
+              await habits.save({
+                ...habitEditor,
+                name,
+                frequency: textValue(data, 'frequency') as Habit['frequency'],
+                category: habitEditor.category || 'personal',
+                target_value: 1,
+                unit: 'check',
+                color: '#3e6b50',
+                is_active: habitEditor.is_active ?? true,
+              })
+              setHabitEditor(null)
+            }}
+          >
+            <Field label="Habit">
+              <input
+                name="name"
+                required
+                maxLength={100}
+                defaultValue={habitEditor.name}
+                placeholder="Read for 10 minutes"
+              />
+            </Field>
+            <Field label="Repeat">
+              <select
+                name="frequency"
+                defaultValue={habitEditor.frequency || 'daily'}
+              >
+                <option value="daily">Daily</option>
+                <option value="weekly">Once a week</option>
+              </select>
+            </Field>
+          </Form>
+        </Dialog>
+      )}
+    </>
   )
 }

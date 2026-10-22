@@ -1,32 +1,45 @@
-# React + TypeScript + Vite
+# LifeOS
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+A small personal tracker built with React, TypeScript, Vite, and Supabase.
 
-Currently, two official plugins are available:
+- **Today:** three priorities, two extra habits, daily notes, and tomorrow planning.
+- **English:** speaking, listening, reading, and writing practice with saved sessions.
+- **Gym & Food:** editable weekly routines, exercise logs, weight and height history, and meal planning.
+- **Jobs:** applications, interview dates, and follow-ups connected to Today.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Run locally
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```sh
+npm install
+npm run dev
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in `.env` for cloud storage. Use the public client key, never a service-role key. Restart Vite after changing these values. Without configuration, records stay in the current browser; they do not sync across devices. With Supabase configured, sign in with the same account on both devices.
+
+## Update an existing Supabase database
+
+In your project's **SQL Editor**, create a new query, paste the entire contents of [`supabase/migrations/20261021_focus_cleanup.sql`](supabase/migrations/20261021_focus_cleanup.sql), and run it. Then reload the app.
+
+This single transaction creates missing tables, adds the required columns and unique indexes, enables owner access policies, and restores missing profiles for existing accounts. It removes the retired `goals`, `expenses`, `income`, and `journal_entries` tables only if they are empty. It never deletes auth accounts or retained tracking records. If a retired table contains rows, or duplicate daily records prevent creation of a unique index, the transaction fails instead of discarding data.
+
+For a brand-new Supabase project, use [`supabase/schema.sql`](supabase/schema.sql). The current schema contains all ten required tables; no extra migration is needed for a fresh project.
+
+A `404` for `english_sessions`, `meal_plans`, or `workout_routines` means the database update has not been applied to the configured project. Clearing table rows does not change the schema. Cloud errors are shown in the app and never silently redirected to browser storage.
+
+## Validation and backup
+
+```sh
+npm test
+npm run lint
+npm run build
+```
+
+Tests cover local-date handling, weekly habits, legacy workout grouping, record preservation, schema errors, and storage failures. They use isolated storage and a mocked database client.
+
+Use **Settings → Download my data** for a JSON export. Partial exports identify tables that could not be read. Dates follow the device's timezone; use matching timezone settings across your devices.
+
+## Daily timetable and reminders
+
+The header shows local time with seconds. On Today, use the date picker to choose a day, then add timed plans to the timetable (8 AM–10 PM slots; you can enter earlier or later times in the form). Timetable plans are separate from the three priorities; priorities with a start time also appear in the timetable.
+
+The header shows the next task and changes to a due reminder at its start time. Unfinished tasks stay due for that local date, including when returning to the app late. The latest due task appears first; marking it done reveals any remaining due tasks. Plans refresh from cloud storage every minute while the app is active and on focus. These are in-app reminders, not background notifications; the app must be open to show them. No database migration is needed for this feature.

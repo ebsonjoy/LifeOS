@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { Input, Button, Card } from '../../components/ui'
-import { Zap, ArrowRight, ShieldCheck } from 'lucide-react'
+import { Zap, ArrowRight } from 'lucide-react'
 
 export function Login() {
   const navigate = useNavigate()
@@ -19,22 +19,9 @@ export function Login() {
     setIsLoading(true)
     try {
       await login(email, password)
-      navigate('/dashboard')
+      navigate('/today')
     } catch (err: any) {
       setError(err?.message || 'Invalid email or credentials. Please try again.')
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  // Quick Demo Access helper
-  const handleQuickDemo = async () => {
-    setIsLoading(true)
-    try {
-      await login('dev@lifeos.app', 'password123')
-      navigate('/dashboard')
-    } catch (err: any) {
-      setError(err?.message || 'Login failed')
     } finally {
       setIsLoading(false)
     }
@@ -50,7 +37,7 @@ export function Login() {
           </div>
           <h1 className="text-2xl font-bold font-heading text-zinc-100">Welcome to LifeOS</h1>
           <p className="text-xs text-zinc-400 mt-1">
-            Track your 3-year transformation across career, habits, and discipline
+            Your English, daily plans, workouts, and next opportunity.
           </p>
         </div>
 
@@ -94,18 +81,6 @@ export function Login() {
           </form>
 
           <div className="mt-6 pt-5 border-t border-zinc-800/80 flex flex-col gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleQuickDemo}
-              disabled={isLoading}
-              leftIcon={<ShieldCheck className="w-4 h-4 text-emerald-400" />}
-              className="w-full justify-center"
-            >
-              One-Click Demo Workspace
-            </Button>
-
             <div className="text-center text-xs text-zinc-400">
               Don't have an account?{' '}
               <Link to="/register" className="text-indigo-400 hover:text-indigo-300 font-semibold underline-offset-4 hover:underline">

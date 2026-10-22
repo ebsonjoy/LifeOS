@@ -134,6 +134,8 @@ export interface JobApplication {
   status: JobApplicationStatus
   applied_date: string // YYYY-MM-DD
   notes?: string | null
+  follow_up_date?: string | null
+  interview_date?: string | null
   created_at: string
   updated_at: string
 }
@@ -152,6 +154,7 @@ export interface FitnessLog {
   id: string
   user_id: string
   date: string // YYYY-MM-DD
+  exercises?: ExerciseSet[]
   workout_completed: boolean
   workout_type?: string | null // e.g. "Push Day", "Strength Training"
   muscle_group?: MuscleGroup | string | null
@@ -184,4 +187,50 @@ export interface PlannedTask {
   summary?: string | null
   created_at?: string
   updated_at?: string
+}
+
+
+export interface ExerciseSet {
+  id: string
+  name: string
+  sets: number
+  reps: number
+  weight: number
+}
+export type EnglishSkill = 'speaking' | 'listening' | 'reading' | 'writing'
+export interface EnglishSession {
+  id: string
+  user_id: string
+  date: string
+  skill: EnglishSkill
+  minutes: number
+  topic: string
+  writing: string
+  correction: string
+  vocabulary: string
+  created_at: string
+  updated_at: string
+}
+export interface MealPlan {
+  id: string
+  user_id: string
+  date: string
+  slot: 'Breakfast' | 'Lunch' | 'Dinner' | 'Snack'
+  meal: string
+  status: 'planned' | 'followed' | 'changed'
+  note: string
+  created_at: string
+  updated_at: string
+}
+export interface WorkoutRoutine {
+  id: string
+  user_id: string
+  weekday: number
+  name: string
+  is_rest: boolean
+  start_time: string
+  end_time: string
+  exercises: ExerciseSet[]
+  created_at: string
+  updated_at: string
 }

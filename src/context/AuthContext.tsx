@@ -1,215 +1,182 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react'
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+} from 'react'
+import type { ReactNode } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
 import { repository } from '../lib/repository'
+import { getTodayString } from '../lib/dateUtils'
 import type { User, Profile } from '../types'
-
 interface AuthContextType {
   user: User | null
   profile: Profile | null
   loading: boolean
+  profileError: string | null
   login: (email: string, password?: string) => Promise<void>
-  register: (email: string, password?: string, fullName?: string) => Promise<void>
+  register: (
+    email: string,
+    password?: string,
+    fullName?: string,
+  ) => Promise<void>
   logout: () => Promise<void>
   refreshProfile: () => Promise<void>
   updateProfile: (data: Partial<Profile>) => Promise<Profile>
   isConfigured: boolean
 }
-
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
-
 const LOCAL_USER_KEY = 'lifeos_auth_user'
-
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
-  const [profile, setProfile] = useState<Profile | null>(null)
-  const [loading, setLoading] = useState(true)
-
-  const fetchProfile = useCallback(async (userId: string, defaultName?: string) => {
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<User | null>(null),
+    [profile, setProfile] = useState<Profile | null>(null),
+    [loading, setLoading] = useState(true),
+    [profileError, setProfileError] = useState<string | null>(null)
+  const queryClient = useQueryClient()
+  const fetchProfile = useCallback(async (id: string, name?: string) => {
     try {
-      let p = await repository.getProfile(userId)
-      if (!p) {
-        // Create initial profile if absent
+      setProfileError(null)
+      let p = await repository.getProfile(id)
+      if (!p)
         p = await repository.upsertProfile({
-          id: userId,
-          full_name: defaultName || 'Dev',
-          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
-          transformation_start_date: new Date().toISOString().split('T')[0],
-          transformation_target_date: new Date(Date.now() + 1095 * 24 * 60 * 60 * 1000)
-            .toISOString()
-            .split('T')[0],
-          onboarding_completed: false,
+          id,
+          full_name: name || 'Your space',
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          transformation_start_date: getTodayString(),
+          transformation_target_date: '2029-10-21',
+          onboarding_completed: true,
         })
-      }
       setProfile(p)
-    } catch (err) {
-      console.error('Failed to load profile', err)
+    } catch (e) {
+      setProfileError(
+        e instanceof Error ? e.message : 'Could not load your profile.',
+      )
+      setProfile(null)
     }
   }, [])
-
-  // Initialize auth state
   useEffect(() => {
-    async function initAuth() {
-      setLoading(true)
-      if (isSupabaseConfigured) {
-        try {
-          const { data: { session } } = await supabase.auth.getSession()
-          if (session?.user) {
-            const u: User = { id: session.user.id, email: session.user.email || '' }
-            setUser(u)
-            await fetchProfile(u.id, session.user.user_metadata?.full_name)
-          } else {
-            setUser(null)
-            setProfile(null)
-          }
-        } catch (err) {
-          console.error('Supabase getSession error:', err)
+    let alive = true
+    if (isSupabaseConfigured) {
+      // Keep async database calls outside the auth callback's session lock.
+      const {
+        data: { subscription },
+      } = supabase.auth.onAuthStateChange((_event, session) => {
+        if (!alive) return
+        if (session?.user) {
+          setUser({ id: session.user.id, email: session.user.email || '' })
+        } else {
+          setUser(null)
+          setProfile(null)
         }
-
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(
-          async (_event, session) => {
-            if (session?.user) {
-              const u: User = { id: session.user.id, email: session.user.email || '' }
-              setUser(u)
-              await fetchProfile(u.id, session.user.user_metadata?.full_name)
-            } else {
-              setUser(null)
-              setProfile(null)
-            }
-          }
+        setLoading(false)
+      })
+      void supabase.auth.getSession().then(({ data, error }) => {
+        if (!alive) return
+        if (error) setProfileError(error.message)
+        setUser(
+          data.session?.user
+            ? { id: data.session.user.id, email: data.session.user.email || '' }
+            : null,
         )
-
         setLoading(false)
-        return () => subscription.unsubscribe()
-      } else {
-        // Local mode session persistence
-        const raw = localStorage.getItem(LOCAL_USER_KEY)
-        if (raw) {
-          try {
-            const parsedUser = JSON.parse(raw) as User
-            setUser(parsedUser)
-            await fetchProfile(parsedUser.id)
-          } catch {
-            localStorage.removeItem(LOCAL_USER_KEY)
-          }
-        } else {
-          // Provide default dev user for quick local inspection
-          const defaultDevUser: User = { id: 'dev-user-lifeos', email: 'dev@lifeos.app' }
-          localStorage.setItem(LOCAL_USER_KEY, JSON.stringify(defaultDevUser))
-          setUser(defaultDevUser)
-          await fetchProfile(defaultDevUser.id, 'Dev')
-        }
-        setLoading(false)
+      })
+      return () => {
+        alive = false
+        subscription.unsubscribe()
       }
     }
-
-    initAuth()
-  }, [fetchProfile])
-
+    try {
+      const raw = localStorage.getItem(LOCAL_USER_KEY)
+      const u: User = raw
+        ? JSON.parse(raw)
+        : { id: 'dev-user-lifeos', email: 'local@lifeos.app' }
+      localStorage.setItem(LOCAL_USER_KEY, JSON.stringify(u))
+      setUser(u)
+    } catch {
+      setProfileError(
+        'Could not open browser storage. Allow storage and reload.',
+      )
+    } finally {
+      setLoading(false)
+    }
+    return () => {
+      alive = false
+    }
+  }, [])
+  const userId = user?.id
+  useEffect(() => {
+    if (userId) void fetchProfile(userId)
+  }, [userId, fetchProfile])
   const login = async (email: string, password?: string) => {
-    setLoading(true)
-    try {
-      if (isSupabaseConfigured) {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email,
-          password: password || 'password123',
-        })
-        if (error) throw error
-        if (data.user) {
-          const u: User = { id: data.user.id, email: data.user.email || '' }
-          setUser(u)
-          await fetchProfile(u.id, data.user.user_metadata?.full_name)
-        }
-      } else {
-        // Local session login
-        const existing = localStorage.getItem(LOCAL_USER_KEY)
-        let localUser: User
-        if (existing) {
-          localUser = JSON.parse(existing)
-          localUser.email = email
-        } else {
-          localUser = { id: 'dev-user-lifeos', email }
-        }
-        localStorage.setItem(LOCAL_USER_KEY, JSON.stringify(localUser))
-        setUser(localUser)
-        await fetchProfile(localUser.id)
-      }
-    } finally {
-      setLoading(false)
+    if (isSupabaseConfigured) {
+      if (!password) throw new Error('Enter your password.')
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
+      if (error) throw error
+      if (data.user)
+        setUser({ id: data.user.id, email: data.user.email || email })
+    } else {
+      const raw = localStorage.getItem(LOCAL_USER_KEY)
+      const u: User = raw
+        ? { ...JSON.parse(raw), email }
+        : { id: 'dev-user-lifeos', email }
+      localStorage.setItem(LOCAL_USER_KEY, JSON.stringify(u))
+      setUser(u)
     }
   }
-
-  const register = async (email: string, password?: string, fullName?: string) => {
-    setLoading(true)
-    try {
-      if (isSupabaseConfigured) {
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password: password || 'password123',
-          options: {
-            data: { full_name: fullName || 'Dev' },
-          },
-        })
-        if (error) throw error
-        if (data.user) {
-          const u: User = { id: data.user.id, email: data.user.email || '' }
-          setUser(u)
-          await fetchProfile(u.id, fullName)
-        }
-      } else {
-        const newId = crypto.randomUUID()
-        const newUser: User = { id: newId, email }
-        localStorage.setItem(LOCAL_USER_KEY, JSON.stringify(newUser))
-        setUser(newUser)
-        const p = await repository.upsertProfile({
-          id: newId,
-          full_name: fullName || 'Dev',
-          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
-          transformation_start_date: new Date().toISOString().split('T')[0],
-          transformation_target_date: new Date(Date.now() + 1095 * 24 * 60 * 60 * 1000)
-            .toISOString()
-            .split('T')[0],
-          onboarding_completed: false,
-        })
-        setProfile(p)
-      }
-    } finally {
-      setLoading(false)
+  const register = async (
+    email: string,
+    password?: string,
+    fullName?: string,
+  ) => {
+    if (isSupabaseConfigured) {
+      if (!password) throw new Error('Enter a password.')
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { data: { full_name: fullName } },
+      })
+      if (error) throw error
+      if (!data.session)
+        throw new Error(
+          'Account created. Check your email to confirm it, then sign in.',
+        )
+      setUser({ id: data.session.user.id, email })
+    } else {
+      const u = { id: crypto.randomUUID(), email }
+      localStorage.setItem(LOCAL_USER_KEY, JSON.stringify(u))
+      setUser(u)
+      await fetchProfile(u.id, fullName)
     }
   }
-
   const logout = async () => {
-    setLoading(true)
-    try {
-      if (isSupabaseConfigured) {
-        await supabase.auth.signOut()
-      } else {
-        localStorage.removeItem(LOCAL_USER_KEY)
-      }
-      setUser(null)
-      setProfile(null)
-    } finally {
-      setLoading(false)
-    }
+    if (isSupabaseConfigured) {
+      const { error } = await supabase.auth.signOut()
+      if (error) throw error
+    } else localStorage.removeItem(LOCAL_USER_KEY)
+    setUser(null)
+    setProfile(null)
+    queryClient.clear()
   }
-
   const refreshProfile = async () => {
-    if (user) {
-      await fetchProfile(user.id)
-    }
+    if (user) await fetchProfile(user.id)
   }
-
-  const updateProfile = async (data: Partial<Profile>): Promise<Profile> => {
-    if (!user) throw new Error('Not logged in')
+  const updateProfile = async (data: Partial<Profile>) => {
+    if (!user) throw new Error('Sign in first.')
     const updated = await repository.upsertProfile({ ...data, id: user.id })
     setProfile(updated)
     return updated
   }
-
   return (
     <AuthContext.Provider
       value={{
         user,
         profile,
+        profileError,
         loading,
         login,
         register,
@@ -223,9 +190,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     </AuthContext.Provider>
   )
 }
-
 export function useAuth() {
-  const context = useContext(AuthContext)
-  if (!context) throw new Error('useAuth must be used within an AuthProvider')
-  return context
+  const value = useContext(AuthContext)
+  if (!value) throw new Error('AuthProvider is missing')
+  return value
 }

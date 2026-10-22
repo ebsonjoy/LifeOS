@@ -1,322 +1,250 @@
-import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import {
-  User,
-  Compass,
-  Palette,
-  LogOut,
-  Sparkles,
-  Database,
-  Save,
-} from 'lucide-react'
+import { useState } from 'react'
+import { Download, Cloud, HardDrive, LogOut } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useTheme } from '../../context/ThemeContext'
 import { useToast } from '../../context/ToastContext'
-import { seedSampleData, clearUserData } from '../../lib/seed'
+import { listRecords } from '../../features/life/data'
+import type { Table } from '../../features/life/data'
 import {
-  PageHeader,
-  Button,
-  Card,
-  Input,
-  ConfirmDialog,
-} from '../../components/ui'
-
+  Field,
+  Form,
+  Panel,
+  PageIntro,
+  Dialog,
+  textValue,
+} from '../../features/life/ui'
+const tables: Table[] = [
+  'daily_logs',
+  'daily_plans',
+  'habits',
+  'habit_logs',
+  'fitness_logs',
+  'job_applications',
+  'english_sessions',
+  'meal_plans',
+  'workout_routines',
+]
 export function Settings() {
-  const navigate = useNavigate()
-  const { profile, updateProfile, logout, user } = useAuth()
-  const { theme, setTheme } = useTheme()
-  const { success, error: toastError } = useToast()
-
-  // Profile Form
-  const [fullName, setFullName] = useState('')
-  const [timezone, setTimezone] = useState('')
-
-  // Transformation Form
-  const [startDate, setStartDate] = useState('2026-09-05')
-  const [targetDate, setTargetDate] = useState('2029-09-05')
-
-  const [isSaving, setIsSaving] = useState(false)
-  const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false)
-  const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false)
-
-  useEffect(() => {
-    if (profile) {
-      setFullName(profile.full_name || '')
-      setTimezone(profile.timezone || 'UTC')
-      if (profile.transformation_start_date) {
-        setStartDate(profile.transformation_start_date)
-      }
-      if (profile.transformation_target_date) {
-        setTargetDate(profile.transformation_target_date)
-      }
-    }
-  }, [profile])
-
-  const handleSaveProfile = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsSaving(true)
+  const { profile, user, updateProfile, isConfigured, logout, refreshProfile } =
+      useAuth(),
+    { theme, setTheme } = useTheme(),
+    toast = useToast()
+  const [exporting, setExporting] = useState(false),
+    [exportError, setExportError] = useState(''),
+    [signOut, setSignOut] = useState(false)
+  const [exportResult, setExportResult] = useState('')
+  async function exportData() {
+    if (!user) return
+    setExporting(true)
+    setExportError('')
+    setExportResult('')
     try {
-      await updateProfile({
-        full_name: fullName.trim(),
-        timezone,
-        transformation_start_date: startDate,
-        transformation_target_date: targetDate,
+      const results = await Promise.allSettled(
+        tables.map((t) => listRecords(t, user.id)),
+      )
+      const data: Record<string, unknown> = {}
+      const missing: string[] = []
+      results.forEach((r, i) => {
+        if (r.status === 'fulfilled') data[tables[i]] = r.value
+        else missing.push(tables[i])
       })
-      success('Settings updated successfully ✓')
-    } catch (err: any) {
-      toastError(err?.message || 'Failed to update settings')
+      const browserRecords: Record<string, unknown> = {}
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i)
+        if (key?.startsWith('lifeos_local_') && key.endsWith('_' + user.id)) {
+          const raw = localStorage.getItem(key)
+          if (raw) browserRecords[key] = raw
+        }
+      }
+      const backup = {
+        version: 2,
+        exported_at: new Date().toISOString(),
+        profile,
+        data,
+        browserRecords,
+        missing,
+      }
+      const blob = new Blob([JSON.stringify(backup, null, 2)], {
+          type: 'application/json',
+        }),
+        url = URL.createObjectURL(blob),
+        a = document.createElement('a')
+      a.href = url
+      a.download =
+        'lifeos-backup-' + new Date().toISOString().slice(0, 10) + '.json'
+      a.click()
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+      setExportResult(
+        missing.length
+          ? 'Partial backup downloaded. Could not export: ' +
+              missing.join(', ') +
+              '. Browser-only records were included.'
+          : 'Backup downloaded, including your saved history.',
+      )
+    } catch (e) {
+      setExportError(e instanceof Error ? e.message : 'Could not export data.')
     } finally {
-      setIsSaving(false)
+      setExporting(false)
     }
   }
-
-  const handleLoadSampleData = async () => {
-    if (!user) return
-    setIsSaving(true)
-    try {
-      await seedSampleData(user.id)
-      success('Sample demo data seeded ✓')
-      window.location.reload()
-    } catch (err: any) {
-      toastError('Failed to load sample data')
-    } finally {
-      setIsSaving(false)
-    }
-  }
-
-  const handleResetData = async () => {
-    if (!user) return
-    setIsSaving(true)
-    try {
-      clearUserData(user.id)
-      success('All local workspace data reset.')
-      window.location.reload()
-    } catch (err: any) {
-      toastError('Failed to reset data')
-    } finally {
-      setIsSaving(false)
-      setIsResetConfirmOpen(false)
-    }
-  }
-
-  const handleLogout = async () => {
-    await logout()
-    navigate('/login')
-  }
-
+  const localCount = user
+    ? Object.keys(localStorage).filter(
+        (k) => k.startsWith('lifeos_local_') && k.endsWith('_' + user.id),
+      ).length
+    : 0
   return (
-    <div className="space-y-6 max-w-4xl mx-auto pb-12 animate-in fade-in duration-300">
-      <PageHeader
-        title="System Settings"
-        description="Configure your transformation horizons, profile, and visual appearance"
+    <>
+      <PageIntro
+        eyebrow="MAKE IT YOURS"
+        title="A space that fits you."
+        description="Your profile, appearance, and saved history."
       />
-
-      <form onSubmit={handleSaveProfile} className="space-y-6">
-        {/* 1. PROFILE SECTION */}
-        <Card className="p-6 bg-zinc-900/80 border-zinc-800">
-          <div className="flex items-center gap-3 mb-4 pb-3 border-b border-zinc-800/80">
-            <div className="p-2.5 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-              <User className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-base font-bold text-zinc-100 font-heading">
-                Profile Information
-              </h3>
-              <p className="text-xs text-zinc-400">Personalize your identity across LifeOS</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Input
-              label="Full Name"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              required
-            />
-            <Input
-              label="Timezone"
-              value={timezone}
-              onChange={(e) => setTimezone(e.target.value)}
-              helperText="Determines daily cutoff and date calculations"
-              required
-            />
-          </div>
-        </Card>
-
-        {/* 2. TRANSFORMATION HORIZON */}
-        <Card className="p-6 bg-zinc-900/80 border-zinc-800">
-          <div className="flex items-center gap-3 mb-4 pb-3 border-b border-zinc-800/80">
-            <div className="p-2.5 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-              <Compass className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-base font-bold text-zinc-100 font-heading">
-                3-Year Transformation Dates
-              </h3>
-              <p className="text-xs text-zinc-400">
-                Adjusting these dynamically recalibrates your Day count across the dashboard
-              </p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Input
-              label="Start Date (Day 1)"
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              required
-            />
-            <Input
-              label="Target Date (Day 1095)"
-              type="date"
-              value={targetDate}
-              onChange={(e) => setTargetDate(e.target.value)}
-              required
-            />
-          </div>
-        </Card>
-
-        {/* 3. APPEARANCE */}
-        <Card className="p-6 bg-zinc-900/80 border-zinc-800">
-          <div className="flex items-center gap-3 mb-4 pb-3 border-b border-zinc-800/80">
-            <div className="p-2.5 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-              <Palette className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-base font-bold text-zinc-100 font-heading">
-                Interface Appearance
-              </h3>
-              <p className="text-xs text-zinc-400">Choose your preferred visual theme</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-3 gap-3">
-            {[
-              { id: 'dark', label: 'Dark Mode (Default)' },
-              { id: 'light', label: 'Light Mode' },
-              { id: 'system', label: 'System Match' },
-            ].map((th) => (
-              <button
-                key={th.id}
-                type="button"
-                onClick={() => setTheme(th.id as any)}
-                className={`p-3 rounded-xl border text-xs font-semibold transition-all text-center ${
-                  theme === th.id
-                    ? 'bg-indigo-600/20 text-indigo-300 border-indigo-500/50 shadow-sm'
-                    : 'bg-zinc-950/40 text-zinc-400 border-zinc-800 hover:border-zinc-700'
-                }`}
+      <div className="equal-col">
+        <div className="stack">
+          <Panel title="Your profile">
+            {profile ? (
+              <Form
+                key={profile.id + profile.updated_at}
+                onSubmit={async (data) => {
+                  await updateProfile({ full_name: textValue(data, 'name') })
+                  toast.success('Profile saved')
+                }}
               >
-                {th.label}
-              </button>
-            ))}
-          </div>
-        </Card>
-
-        {/* Save button */}
-        <div className="flex justify-end">
-          <Button
-            type="submit"
-            variant="primary"
-            size="md"
-            isLoading={isSaving}
-            leftIcon={<Save className="w-4 h-4" />}
+                <Field label="Your name">
+                  <input
+                    name="name"
+                    defaultValue={profile.full_name}
+                    required
+                    maxLength={100}
+                  />
+                </Field>
+                <p className="muted">
+                  Dates follow this device’s local time:{' '}
+                  {Intl.DateTimeFormat().resolvedOptions().timeZone}.
+                </p>
+              </Form>
+            ) : (
+              <>
+                <p className="muted">Your profile could not load.</p>
+                <button
+                  className="btn secondary"
+                  onClick={() => void refreshProfile()}
+                >
+                  Retry profile
+                </button>
+              </>
+            )}
+          </Panel>
+          <Panel title="Appearance">
+            <div className="skill-tabs" style={{ margin: 0 }}>
+              {(['light', 'dark', 'system'] as const).map((t) => (
+                <button
+                  className={'chip ' + (theme === t ? 'active' : '')}
+                  key={t}
+                  onClick={() => setTheme(t)}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+          </Panel>
+          <Panel
+            title="Your account"
+            action={
+              isConfigured ? <Cloud size={18} /> : <HardDrive size={18} />
+            }
           >
-            Save Configuration
-          </Button>
-        </div>
-      </form>
-
-      {/* 4. WORKSPACE & DEVELOPER DATA UTILITIES */}
-      <Card className="p-6 bg-zinc-900/60 border-zinc-800 space-y-4">
-        <div className="flex items-center gap-3 pb-3 border-b border-zinc-800/80">
-          <div className="p-2.5 rounded-xl bg-zinc-800 text-zinc-400">
-            <Database className="w-5 h-5" />
-          </div>
-          <div>
-            <h3 className="text-base font-bold text-zinc-100 font-heading">
-              Data & Test Utilities
-            </h3>
-            <p className="text-xs text-zinc-400">
-              Optional utilities for testing dashboard visualizations
+            <p className="muted">
+              {isConfigured
+                ? 'Sign in with the same account on your phone and laptop to access cloud records. Changes refresh when you return to the app.'
+                : 'This workspace currently saves in this browser only. Cloud sync requires a configured Supabase project.'}
             </p>
-          </div>
-        </div>
-
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-1">
-          <div>
-            <h4 className="text-sm font-semibold text-zinc-200">Seed Demo Data</h4>
-            <p className="text-xs text-zinc-400">
-              Pre-populates sample habits, 7-day logs, goals, and finances for testing
+            <p className="muted" style={{ marginTop: 12 }}>
+              {user?.email}
             </p>
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={handleLoadSampleData}
-            leftIcon={<Sparkles className="w-4 h-4 text-amber-400" />}
+            <button
+              className="text-link view-all"
+              onClick={() => setSignOut(true)}
+            >
+              <LogOut size={14} />
+              Sign out
+            </button>
+          </Panel>
+        </div>
+        <div className="stack">
+          <Panel
+            title="Keep a copy"
+            subtitle="Export your records before moving or changing devices."
+            action={<Download size={18} />}
           >
-            Load Sample Data
-          </Button>
+            <button
+              className="btn secondary"
+              disabled={exporting}
+              onClick={() => void exportData()}
+            >
+              {exporting ? 'Preparing backup…' : 'Download my data'}
+            </button>
+            {exportError && (
+              <p className="error-text" role="alert">
+                {exportError}
+              </p>
+            )}
+            {exportResult && (
+              <p className="muted" role="status" style={{ marginTop: 12 }}>
+                {exportResult}
+              </p>
+            )}
+            {isConfigured && localCount > 0 && (
+              <p className="muted" style={{ marginTop: 12 }}>
+                This browser also has {localCount} saved data collections for
+                this account. Your export includes these separately, so older
+                browser-only entries are preserved.
+              </p>
+            )}
+          </Panel>
+          <Panel title="Cloud setup">
+            <details>
+              <summary>Database update & setup instructions</summary>
+              <div className="stack">
+                <p className="muted">
+                  For an existing Supabase project, run the complete migration{' '}
+                  <code>supabase/migrations/20261021_focus_cleanup.sql</code> in
+                  its SQL editor. It adds the missing tables and fields, and
+                  removes goals, expenses, income, and journal_entries only when
+                  those retired tables are empty. Existing tracking records and
+                  accounts are kept.
+                </p>
+                <p className="muted">
+                  For a new project, run <code>supabase/schema.sql</code>, which
+                  includes all required tables. Set VITE_SUPABASE_URL and
+                  VITE_SUPABASE_ANON_KEY in the deployment environment.
+                </p>
+                <p className="muted">
+                  Failed cloud saves are reported and never silently moved to
+                  browser storage. Your public client key cannot apply database
+                  migrations; use your project’s SQL editor.
+                </p>
+              </div>
+            </details>
+          </Panel>
         </div>
-
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-zinc-800/60">
-          <div>
-            <h4 className="text-sm font-semibold text-zinc-200">Reset Local Workspace</h4>
-            <p className="text-xs text-zinc-400">
-              Clears all local records to test fresh new-user empty states
-            </p>
-          </div>
-          <Button
-            type="button"
-            variant="danger"
-            size="sm"
-            onClick={() => setIsResetConfirmOpen(true)}
+      </div>
+      {signOut && (
+        <Dialog title="Sign out?" onClose={() => setSignOut(false)}>
+          <Form
+            submit="Sign out"
+            onCancel={() => setSignOut(false)}
+            onSubmit={async () => {
+              await logout()
+              setSignOut(false)
+            }}
           >
-            Reset Workspace
-          </Button>
-        </div>
-      </Card>
-
-      {/* 5. ACCOUNT LOGOUT */}
-      <Card className="p-6 bg-zinc-900/60 border-zinc-800 flex items-center justify-between">
-        <div>
-          <h3 className="text-sm font-bold text-zinc-200 font-heading">Sign Out</h3>
-          <p className="text-xs text-zinc-400">
-            Signed in as <span className="text-zinc-300 font-mono">{user?.email}</span>
-          </p>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setIsLogoutConfirmOpen(true)}
-          leftIcon={<LogOut className="w-4 h-4 text-rose-400" />}
-        >
-          Sign Out
-        </Button>
-      </Card>
-
-      {/* Logout Dialog */}
-      <ConfirmDialog
-        isOpen={isLogoutConfirmOpen}
-        onClose={() => setIsLogoutConfirmOpen(false)}
-        onConfirm={handleLogout}
-        title="Sign Out"
-        message="Are you sure you want to sign out of LifeOS?"
-        confirmText="Sign Out"
-        isDestructive={false}
-      />
-
-      {/* Reset Confirmation Dialog */}
-      <ConfirmDialog
-        isOpen={isResetConfirmOpen}
-        onClose={() => setIsResetConfirmOpen(false)}
-        onConfirm={handleResetData}
-        title="Reset All Local Workspace Data"
-        message="This will clear all local habits, logs, goals, journal entries, and finances. Are you sure?"
-        confirmText="Reset All Data"
-      />
-    </div>
+            <p className="muted">
+              Your saved entries will stay in your account or this browser.
+            </p>
+          </Form>
+        </Dialog>
+      )}
+    </>
   )
 }

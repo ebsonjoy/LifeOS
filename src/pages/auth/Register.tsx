@@ -42,7 +42,7 @@ export function Register() {
           </div>
           <h1 className="text-2xl font-bold font-heading text-zinc-100">Create Your LifeOS Account</h1>
           <p className="text-xs text-zinc-400 mt-1">
-            Begin your 3-year journey of disciplined growth and transformation
+            Make a little space for what matters each day.
           </p>
         </div>
 
@@ -89,7 +89,7 @@ export function Register() {
               isLoading={isLoading}
               rightIcon={<ArrowRight className="w-4 h-4" />}
             >
-              Start Transformation
+              Create account
             </Button>
           </form>
 

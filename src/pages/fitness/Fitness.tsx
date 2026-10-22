@@ -1,17 +1,13 @@
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 import {
   Plus,
   Dumbbell,
-  Scale,
-  Clock,
+  ArrowRight,
+  Pencil,
   Trash2,
-  TrendingUp,
-  Ruler,
-  Calendar,
-  Activity,
-  Trophy,
-  Zap,
-  Layers,
+  Copy,
+  Scale,
+  Utensils,
 } from 'lucide-react'
 import {
   ResponsiveContainer,
@@ -20,1290 +16,996 @@ import {
   XAxis,
   YAxis,
   Tooltip,
-  AreaChart,
-  Area,
 } from 'recharts'
-import { useFitness } from '../../hooks/useFitness'
-import { getTodayString } from '../../lib/dateUtils'
+import { useAuth } from '../../context/AuthContext'
+import { listRecords, useRecords } from '../../features/life/data'
+import { shiftDay, workoutSessions } from '../../features/life/helpers'
 import {
-  PageHeader,
-  Button,
-  Card,
-  Modal,
-  Input,
-  Textarea,
-  ConfirmDialog,
-  Badge,
-  EmptyState,
-} from '../../components/ui'
-import type { MuscleGroup } from '../../types'
-
-interface MuscleInfo {
-  id: MuscleGroup
-  name: string
-  icon: string
-  day: string
-  recommendedExercises: string[]
-  description: string
-  color: string
-}
-
-const MUSCLE_PROGRAM: MuscleInfo[] = [
-  {
-    id: 'chest',
-    name: 'Chest (Pectorals)',
-    icon: '🛡️',
-    day: 'Monday / Push Day',
-    recommendedExercises: [
-      'Barbell Bench Press',
-      'Incline Dumbbell Press',
-      'Dips',
-      'Cable Chest Flyes',
-      'Push-ups',
-    ],
-    description: 'Pectoral major & minor push volume and pressing power',
-    color: 'from-indigo-500/20 to-indigo-600/5',
-  },
-  {
-    id: 'back',
-    name: 'Back (Lats & Traps)',
-    icon: '🦅',
-    day: 'Tuesday / Pull Day',
-    recommendedExercises: [
-      'Barbell Deadlift',
-      'Pull-ups / Chin-ups',
-      'Barbell Bent-Over Row',
-      'Lat Pulldown',
-      'Seated Cable Row',
-    ],
-    description: 'Lat width, upper back thickness, and posterior chain power',
-    color: 'from-emerald-500/20 to-emerald-600/5',
-  },
-  {
-    id: 'legs',
-    name: 'Legs (Quads & Hamstrings)',
-    icon: '🦵',
-    day: 'Wednesday / Leg Day',
-    recommendedExercises: [
-      'Barbell Back Squat',
-      'Romanian Deadlift (RDL)',
-      'Leg Press',
-      'Bulgarian Split Squat',
-      'Calf Raises',
-    ],
-    description: 'Lower body foundation, quad drive, and explosive stability',
-    color: 'from-amber-500/20 to-amber-600/5',
-  },
-  {
-    id: 'shoulders',
-    name: 'Shoulders (Deltoids)',
-    icon: '🥥',
-    day: 'Thursday / Shoulders',
-    recommendedExercises: [
-      'Overhead Press',
-      'Dumbbell Lateral Raise',
-      'Face Pulls',
-      'Arnold Press',
-      'Rear Delt Fly',
-    ],
-    description: 'Front, lateral, and rear deltoid cap development',
-    color: 'from-rose-500/20 to-rose-600/5',
-  },
-  {
-    id: 'arms',
-    name: 'Arms (Biceps & Triceps)',
-    icon: '💪',
-    day: 'Friday / Hypertrophy',
-    recommendedExercises: [
-      'Barbell Bicep Curl',
-      'Tricep Pushdown',
-      'Hammer Curls',
-      'Skullcrushers',
-      'Close-Grip Bench',
-    ],
-    description: 'Biceps peak, triceps volume, and forearm grip power',
-    color: 'from-sky-500/20 to-sky-600/5',
-  },
-  {
-    id: 'core',
-    name: 'Core & Abs',
-    icon: '⚡',
-    day: 'Daily / Post-Workout',
-    recommendedExercises: [
-      'Hanging Leg Raises',
-      'Cable Woodchoppers',
-      'Weighted Plank',
-      'Ab Wheel Rollout',
-    ],
-    description: 'Core trunk stiffness, rotational stability, and lumbar support',
-    color: 'from-violet-500/20 to-violet-600/5',
-  },
+  DataNotice,
+  DayPicker,
+  Dialog,
+  Empty,
+  Field,
+  Form,
+  Panel,
+  PageIntro,
+  dayLabel,
+  ignoreHandled,
+  numberValue,
+  textValue,
+  useDay,
+} from '../../features/life/ui'
+import type {
+  ExerciseSet,
+  FitnessLog,
+  MealPlan,
+  WorkoutRoutine,
+} from '../../types'
+const dayNames = [
+  'Sunday',
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
 ]
-
-const WEEKLY_SPLIT_SCHEDULE = [
-  { day: 'Monday', focus: 'Push Day', muscles: 'Chest, Front Delts & Triceps', color: 'indigo' },
-  { day: 'Tuesday', focus: 'Pull Day', muscles: 'Back, Lats, Traps & Biceps', color: 'emerald' },
-  { day: 'Wednesday', focus: 'Legs & Core', muscles: 'Quads, Hamstrings & Calves', color: 'amber' },
-  { day: 'Thursday', focus: 'Active Recovery', muscles: 'Cardio, Mobility & Core', color: 'teal' },
-  { day: 'Friday', focus: 'Upper Body', muscles: 'Chest, Back, Shoulders & Arms', color: 'rose' },
-  { day: 'Saturday', focus: 'Lower Body & PRs', muscles: 'Deadlift, Squats & Conditioning', color: 'sky' },
-  { day: 'Sunday', focus: 'Rest & Reset', muscles: 'Rest, Sleep & Deep Nutrition', color: 'zinc' },
-]
-
-function computeBMI(weightKg?: number | null, heightCm?: number | null) {
-  if (!weightKg || !heightCm || heightCm <= 0) return null
-  const heightM = heightCm / 100
-  const bmi = weightKg / (heightM * heightM)
-  return parseFloat(bmi.toFixed(1))
-}
-
-function getBMICategory(bmi: number) {
-  if (bmi < 18.5) return { label: 'Underweight', color: 'text-amber-400', bg: 'bg-amber-500/10' }
-  if (bmi < 25) return { label: 'Normal / Athletic', color: 'text-emerald-400', bg: 'bg-emerald-500/10' }
-  if (bmi < 30) return { label: 'Overweight / Muscular', color: 'text-sky-400', bg: 'bg-sky-500/10' }
-  return { label: 'High Body Mass', color: 'text-rose-400', bg: 'bg-rose-500/10' }
-}
-
-export function Fitness() {
-  const {
-    logs,
-    workouts,
-    weightLogs,
-    latestWeight,
-    latestHeight,
-    strengthLogs,
-    exerciseNames,
-    saveFitnessLog,
-    deleteFitnessLog,
-    isLoading,
-  } = useFitness()
-
-  const [activeTab, setActiveTab] = useState<'workouts' | 'program' | 'biometrics'>('workouts')
-  const [isWorkoutModalOpen, setIsWorkoutModalOpen] = useState(false)
-  const [isBiometricModalOpen, setIsBiometricModalOpen] = useState(false)
-  const [deletingId, setDeletingId] = useState<string | null>(null)
-
-  // Workout form state
-  const [workoutDate, setWorkoutDate] = useState(getTodayString())
-  const [workoutType, setWorkoutType] = useState('Push Day')
-  const [selectedMuscle, setSelectedMuscle] = useState<MuscleGroup>('chest')
-  const [exerciseName, setExerciseName] = useState('Barbell Bench Press')
-  const [weightLifted, setWeightLifted] = useState('85')
-  const [sets, setSets] = useState('4')
-  const [reps, setReps] = useState('8')
-  const [duration, setDuration] = useState('50')
-  const [workoutNotes, setWorkoutNotes] = useState('')
-
-  // Biometric form state
-  const [biometricDate, setBiometricDate] = useState(getTodayString())
-  const [bodyWeightInput, setBodyWeightInput] = useState(latestWeight ? String(latestWeight) : '')
-  const [bodyHeightInput, setBodyHeightInput] = useState(latestHeight ? String(latestHeight) : '178')
-
-  // Selected exercise for strength progression graph
-  const defaultExercise = exerciseNames.length > 0 ? exerciseNames[0] : 'Barbell Bench Press'
-  const [selectedExerciseForGraph, setSelectedExerciseForGraph] = useState<string>(defaultExercise)
-
-  // Ensure selectedExerciseForGraph points to valid item if available
-  const activeExerciseForGraph =
-    selectedExerciseForGraph && (exerciseNames.includes(selectedExerciseForGraph) || strengthLogs.some(l => l.exercise_name === selectedExerciseForGraph))
-      ? selectedExerciseForGraph
-      : defaultExercise
-
-  // Strength graph data for the selected exercise
-  const exerciseStrengthLogs = useMemo(() => {
-    return strengthLogs
-      .filter(
-        (l) =>
-          l.exercise_name?.trim().toLowerCase() ===
-          activeExerciseForGraph.trim().toLowerCase()
-      )
-      .sort((a, b) => a.date.localeCompare(b.date))
-  }, [strengthLogs, activeExerciseForGraph])
-
-  const strengthChartData = useMemo(() => {
-    return exerciseStrengthLogs.map((l) => ({
-      date: l.date.slice(5), // MM-DD
-      fullDate: l.date,
-      weight: l.weight_lifted ?? 0,
-      sets: l.sets,
-      reps: l.reps,
-      notes: l.notes,
-    }))
-  }, [exerciseStrengthLogs])
-
-  // Compute upgrade metric (progressive overload)
-  const strengthUpgradeMetric = useMemo(() => {
-    if (exerciseStrengthLogs.length === 0) return null
-    const firstLift = exerciseStrengthLogs[0].weight_lifted || 0
-    const maxLift = Math.max(...exerciseStrengthLogs.map((l) => l.weight_lifted || 0))
-    const latestLift = exerciseStrengthLogs[exerciseStrengthLogs.length - 1].weight_lifted || 0
-    const upgradeKg = parseFloat((latestLift - firstLift).toFixed(1))
-    const percentChange = firstLift > 0 ? ((upgradeKg / firstLift) * 100).toFixed(1) : '0'
-    return {
-      firstLift,
-      maxLift,
-      latestLift,
-      upgradeKg,
-      percentChange,
-      isUpgrade: upgradeKg > 0,
-      totalSessions: exerciseStrengthLogs.length,
-    }
-  }, [exerciseStrengthLogs])
-
-  // Weight Trend Data for biometrics
-  const weightChartData = useMemo(() => {
-    return weightLogs.map((log) => ({
-      date: log.date.slice(5),
-      fullDate: log.date,
-      weight: log.weight,
-    }))
-  }, [weightLogs])
-
-  // Compute weekly weight change
-  const weeklyWeightDelta = useMemo(() => {
-    if (weightLogs.length < 2) return null
-    const current = weightLogs[weightLogs.length - 1].weight ?? 0
-    const prev = weightLogs[weightLogs.length - 2].weight ?? 0
-    const delta = parseFloat((current - prev).toFixed(1))
-    return delta
-  }, [weightLogs])
-
-  const currentBMI = computeBMI(latestWeight, latestHeight)
-  const bmiCategory = currentBMI ? getBMICategory(currentBMI) : null
-  const totalWorkoutMinutes = workouts.reduce((sum, w) => sum + (w.duration_minutes || 0), 0)
-
-  // Save Workout handler
-  const handleSaveWorkout = async (e: React.FormEvent) => {
-    e.preventDefault()
-    await saveFitnessLog({
-      date: workoutDate,
-      workout_completed: true,
-      workout_type: workoutType.trim() || 'Strength Training',
-      muscle_group: selectedMuscle,
-      exercise_name: exerciseName.trim(),
-      weight_lifted: weightLifted ? parseFloat(weightLifted) : null,
-      sets: sets ? parseInt(sets, 10) : null,
-      reps: reps ? parseInt(reps, 10) : null,
-      duration_minutes: parseInt(duration, 10) || 0,
-      notes: workoutNotes.trim() || null,
-      weight: null,
-      height: null,
-    })
-    setWorkoutNotes('')
-    setIsWorkoutModalOpen(false)
-  }
-
-  // Save Weekly Biometrics (Height & Weight) handler
-  const handleSaveBiometric = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!bodyWeightInput && !bodyHeightInput) return
-    await saveFitnessLog({
-      date: biometricDate,
-      workout_completed: false,
-      workout_type: null,
-      muscle_group: null,
-      exercise_name: null,
-      weight_lifted: null,
-      sets: null,
-      reps: null,
-      duration_minutes: 0,
-      notes: 'Weekly Biometric Metric Entry',
-      weight: bodyWeightInput ? parseFloat(bodyWeightInput) : null,
-      height: bodyHeightInput ? parseFloat(bodyHeightInput) : null,
-    })
-    setIsBiometricModalOpen(false)
-  }
-
-  // Find personal record (PR) for each muscle group
-  const musclePRs = useMemo(() => {
-    const prs: Partial<Record<MuscleGroup, { exercise: string; weight: number }>> = {}
-    logs.forEach((log) => {
-      if (log.muscle_group && log.weight_lifted && log.exercise_name) {
-        const mg = log.muscle_group as MuscleGroup
-        if (!prs[mg] || log.weight_lifted > prs[mg]!.weight) {
-          prs[mg] = { exercise: log.exercise_name, weight: log.weight_lifted }
-        }
-      }
-    })
-    return prs
-  }, [logs])
-
-  // Auto-fill exercise recommendation when choosing muscle
-  const handleSelectMuscle = (m: MuscleGroup) => {
-    setSelectedMuscle(m)
-    const target = MUSCLE_PROGRAM.find((p) => p.id === m)
-    if (target && target.recommendedExercises.length > 0) {
-      setExerciseName(target.recommendedExercises[0])
-    }
-  }
-
+const slots: MealPlan['slot'][] = ['Breakfast', 'Lunch', 'Dinner', 'Snack']
+const blankExercise = (): ExerciseSet => ({
+  id: crypto.randomUUID(),
+  name: '',
+  sets: 3,
+  reps: 10,
+  weight: 0,
+})
+function oldExercises(row: FitnessLog): ExerciseSet[] {
   return (
-    <div className="space-y-6 max-w-6xl mx-auto pb-16 animate-in fade-in duration-300">
-      {/* Header */}
-      <PageHeader
-        title="Physical Fitness & Strength Command"
-        description="Track your weekly height & body weight, target muscle workouts, and progressive overload upgrades"
-        actions={
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsBiometricModalOpen(true)}
-              leftIcon={<Scale className="w-4 h-4 text-emerald-400" />}
-            >
-              Log Weekly Height & Weight
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => setIsWorkoutModalOpen(true)}
-              leftIcon={<Plus className="w-4 h-4" />}
-              className="shadow-lg shadow-indigo-500/20"
-            >
-              Log Workout
-            </Button>
-          </div>
-        }
-      />
-
-      {/* 1. TOP SECTION: WEEKLY HEIGHT, WEIGHT & CORE METRICS */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Latest Body Weight */}
-        <div className="p-4 rounded-2xl bg-zinc-900/90 border border-zinc-800/80 shadow-md space-y-1 relative overflow-hidden">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
-              Body Weight
-            </span>
-            <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400">
-              <Scale className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="flex items-baseline gap-2 pt-1">
-            <span className="text-2xl font-black font-heading text-zinc-100 font-mono">
-              {latestWeight ? `${latestWeight} kg` : '—'}
-            </span>
-            {weeklyWeightDelta !== null && (
-              <span
-                className={`text-[11px] font-semibold px-1.5 py-0.5 rounded-md ${
-                  weeklyWeightDelta < 0
-                    ? 'bg-emerald-500/10 text-emerald-400'
-                    : weeklyWeightDelta > 0
-                    ? 'bg-amber-500/10 text-amber-400'
-                    : 'bg-zinc-800 text-zinc-400'
-                }`}
-              >
-                {weeklyWeightDelta > 0 ? `+${weeklyWeightDelta}` : weeklyWeightDelta} kg this week
-              </span>
-            )}
-          </div>
-          <p className="text-[11px] text-zinc-400">
-            {weightLogs.length > 0 ? `${weightLogs.length} logged check-ins` : 'Log weekly weight'}
-          </p>
+    row.exercises ||
+    (row.exercise_name
+      ? [
+          {
+            id: row.id,
+            name: row.exercise_name,
+            sets: row.sets || 1,
+            reps: row.reps || 1,
+            weight: row.weight_lifted || 0,
+          },
+        ]
+      : [])
+  )
+}
+function ExerciseEditor({
+  rows,
+  onChange,
+}: {
+  rows: ExerciseSet[]
+  onChange: (rows: ExerciseSet[]) => void
+}) {
+  const edit = (id: string, key: keyof ExerciseSet, value: string | number) =>
+    onChange(rows.map((r) => (r.id === id ? { ...r, [key]: value } : r)))
+  return (
+    <div>
+      {rows.map((r) => (
+        <div key={r.id} className="exercise-row">
+          <Field label="Exercise">
+            <input
+              aria-label="Exercise name"
+              required
+              value={r.name}
+              onChange={(e) => edit(r.id, 'name', e.target.value)}
+              placeholder="Exercise name"
+            />
+          </Field>
+          <Field label="Sets">
+            <input
+              type="number"
+              required
+              min={1}
+              max={100}
+              value={r.sets}
+              onChange={(e) => edit(r.id, 'sets', Number(e.target.value))}
+            />
+          </Field>
+          <Field label="Reps">
+            <input
+              type="number"
+              required
+              min={1}
+              max={500}
+              value={r.reps}
+              onChange={(e) => edit(r.id, 'reps', Number(e.target.value))}
+            />
+          </Field>
+          <Field label="Kg">
+            <input
+              type="number"
+              required
+              min={0}
+              max={1000}
+              step="0.5"
+              value={r.weight}
+              onChange={(e) => edit(r.id, 'weight', Number(e.target.value))}
+            />
+          </Field>
+          <button
+            type="button"
+            className="icon-btn"
+            aria-label={'Remove ' + (r.name || 'exercise')}
+            onClick={() => onChange(rows.filter((x) => x.id !== r.id))}
+          >
+            <Trash2 size={14} />
+          </button>
         </div>
-
-        {/* Height & Stature */}
-        <div className="p-4 rounded-2xl bg-zinc-900/90 border border-zinc-800/80 shadow-md space-y-1 relative overflow-hidden">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
-              Height
+      ))}
+      <button
+        type="button"
+        className="text-link"
+        onClick={() => onChange([...rows, blankExercise()])}
+      >
+        <Plus size={14} />
+        Add exercise
+      </button>
+    </div>
+  )
+}
+export function Fitness() {
+  const day = useDay()
+  return <FitnessContent key={day.date} {...day} />
+}
+function FitnessContent({
+  date,
+  today,
+  setDate,
+}: {
+  date: string
+  today: string
+  setDate: (d: string) => void
+}) {
+  const fitness = useRecords('fitness_logs'),
+    routines = useRecords('workout_routines'),
+    meals = useRecords('meal_plans')
+  const { user } = useAuth()
+  const weekday = new Date(date + 'T12:00:00').getDay()
+  const [routineDay, setRoutineDay] = useState(weekday)
+  const [workoutEditor, setWorkoutEditor] =
+    useState<Partial<FitnessLog> | null>(null)
+  const [routineEditor, setRoutineEditor] =
+    useState<Partial<WorkoutRoutine> | null>(null)
+  const [measurementEditor, setMeasurementEditor] =
+    useState<Partial<FitnessLog> | null>(null)
+  const [mealEditor, setMealEditor] = useState<Partial<MealPlan> | null>(null)
+  const [exercises, setExercises] = useState<ExerciseSet[]>([])
+  const [restEdit, setRestEdit] = useState(false)
+  const [deletion, setDeletion] = useState<{
+    table: 'fitness' | 'meals'
+    id: string
+  } | null>(null)
+  const [copying, setCopying] = useState(false),
+    [copyMessage, setCopyMessage] = useState('')
+  const [exerciseName, setExerciseName] = useState('')
+  const routine = routines.rows.find((r) => r.weekday === routineDay)
+  const todayRoutine = routines.rows.find((r) => r.weekday === weekday)
+  const rest = todayRoutine?.is_rest ?? weekday === 0
+  const todayWorkouts = workoutSessions(
+    fitness.rows.filter((w) => w.date === date),
+  )
+  const allSessions = workoutSessions(fitness.rows)
+  const measurements = fitness.rows
+    .filter((r) => r.weight != null || r.height != null)
+    .sort(
+      (a, b) =>
+        b.date.localeCompare(a.date) ||
+        b.created_at.localeCompare(a.created_at),
+    )
+  const latestWeight = measurements.find(
+    (m) => m.date <= today && m.weight != null,
+  )?.weight
+  const latestHeight = measurements.find(
+    (m) => m.date <= today && m.height != null,
+  )?.height
+  const weights = measurements
+    .filter((m) => m.weight != null && m.date <= today)
+    .slice()
+    .reverse()
+  const selectedMeals = meals.rows
+    .filter((m) => m.date === date)
+    .sort((a, b) => slots.indexOf(a.slot) - slots.indexOf(b.slot))
+  const mealOptions = [
+    ...new Set(['2 eggs', 'Bananas', ...meals.rows.map((m) => m.meal)]),
+  ]
+  const strength = fitness.rows
+    .filter((r) => r.workout_completed)
+    .flatMap((r) =>
+      oldExercises(r).map((e) => ({ ...e, date: r.date, sessionId: r.id })),
+    )
+  const exerciseNames = [...new Set(strength.map((e) => e.name))].sort()
+  const selectedExercise = exerciseName || exerciseNames[0] || ''
+  const previous = (name: string) =>
+    strength
+      .filter(
+        (e) =>
+          e.name.toLowerCase().trim() === name.toLowerCase().trim() &&
+          e.date < date,
+      )
+      .sort((a, b) => b.date.localeCompare(a.date))[0]
+  const startWorkout = () => {
+    setExercises(
+      (todayRoutine?.exercises || []).map((e) => ({
+        ...e,
+        id: crypto.randomUUID(),
+      })),
+    )
+    setWorkoutEditor({
+      date,
+      workout_type: todayRoutine?.name || 'Evening workout',
+      duration_minutes: 0,
+    })
+  }
+  const editRoutine = () => {
+    setExercises(routine?.exercises || [])
+    setRestEdit(routine?.is_rest ?? routineDay === 0)
+    setRoutineEditor(
+      routine || {
+        weekday: routineDay,
+        name: routineDay === 0 ? 'Rest day' : 'Evening workout',
+        is_rest: routineDay === 0,
+        start_time: '18:00',
+        end_time: '20:00',
+      },
+    )
+  }
+  const checkedExercises = () => {
+    if (
+      exercises.some(
+        (e) => !e.name.trim() || e.sets < 1 || e.reps < 1 || e.weight < 0,
+      )
+    )
+      throw new Error('Complete each exercise name, sets, reps, and weight.')
+    return exercises.map((e) => ({ ...e, name: e.name.trim() }))
+  }
+  return (
+    <>
+      <PageIntro
+        eyebrow="BUILD STRENGTH, FIND BALANCE"
+        title="Show up for yourself."
+        description="Your training, meals, and measurements. All in one place."
+      >
+        <DayPicker date={date} today={today} onChange={setDate} />
+      </PageIntro>
+      <DataNotice queries={[fitness, routines, meals]} />
+      <div className="summary-strip">
+        <div className="summary-item">
+          <span className="eyebrow">GYM THIS WEEK</span>
+          <strong>
+            {
+              allSessions.filter(
+                (g) => g[0].date >= shiftDay(today, -6) && g[0].date <= today,
+              ).length
+            }
+            <span className="muted">
+              {' '}
+              {allSessions.filter(
+                (g) => g[0].date >= shiftDay(today, -6) && g[0].date <= today,
+              ).length === 1
+                ? 'session'
+                : 'sessions'}
             </span>
-            <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400">
-              <Ruler className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="flex items-baseline gap-2 pt-1">
-            <span className="text-2xl font-black font-heading text-zinc-100 font-mono">
-              {latestHeight ? `${latestHeight} cm` : '178 cm'}
-            </span>
-            {latestHeight && (
-              <span className="text-xs text-zinc-400 font-mono">
-                {Math.floor(latestHeight / 30.48)}'
-                {Math.round((latestHeight % 30.48) / 2.54)}"
-              </span>
-            )}
-          </div>
-          <p className="text-[11px] text-zinc-400">Recorded physical baseline</p>
+          </strong>
+          <p>Last seven days</p>
         </div>
-
-        {/* Calculated BMI */}
-        <div className="p-4 rounded-2xl bg-zinc-900/90 border border-zinc-800/80 shadow-md space-y-1 relative overflow-hidden">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
-              Calculated BMI
-            </span>
-            <div className="p-2 rounded-xl bg-sky-500/10 text-sky-400">
-              <Activity className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="flex items-baseline gap-2 pt-1">
-            <span className="text-2xl font-black font-heading text-zinc-100 font-mono">
-              {currentBMI ?? '—'}
-            </span>
-            {bmiCategory && (
-              <span
-                className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${bmiCategory.bg} ${bmiCategory.color}`}
-              >
-                {bmiCategory.label}
-              </span>
-            )}
-          </div>
-          <p className="text-[11px] text-zinc-400">Optimal lean athletic target</p>
+        <div className="summary-item">
+          <span className="eyebrow">LATEST WEIGHT</span>
+          <strong>
+            {latestWeight ?? '—'}
+            <span className="muted"> kg</span>
+          </strong>
+          <p>Your most recent measurement</p>
         </div>
-
-        {/* Training Discipline */}
-        <div className="p-4 rounded-2xl bg-zinc-900/90 border border-zinc-800/80 shadow-md space-y-1 relative overflow-hidden">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
-              Strength Volume
-            </span>
-            <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400">
-              <Trophy className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="flex items-baseline gap-2 pt-1">
-            <span className="text-2xl font-black font-heading text-zinc-100 font-mono">
-              {workouts.length}
-            </span>
-            <span className="text-xs text-zinc-400">sessions ({totalWorkoutMinutes}m)</span>
-          </div>
-          <p className="text-[11px] text-emerald-400 font-semibold flex items-center gap-1">
-            <Zap className="w-3 h-3" /> Progressive Overload Active
-          </p>
+        <div className="summary-item">
+          <span className="eyebrow">LATEST HEIGHT</span>
+          <strong>
+            {latestHeight ?? '—'}
+            <span className="muted"> cm</span>
+          </strong>
+          <p>Update whenever you measure</p>
         </div>
       </div>
-
-      {/* Navigation Tabs */}
-      <div className="flex items-center gap-2 border-b border-zinc-800 pb-1">
-        <button
-          onClick={() => setActiveTab('workouts')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-            activeTab === 'workouts'
-              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
-              : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/50'
-          }`}
-        >
-          <TrendingUp className="w-3.5 h-3.5" />
-          <span>Strength Upgrades & History</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('program')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-            activeTab === 'program'
-              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
-              : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/50'
-          }`}
-        >
-          <Layers className="w-3.5 h-3.5" />
-          <span>Main Muscles & Program Split</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('biometrics')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-            activeTab === 'biometrics'
-              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
-              : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/50'
-          }`}
-        >
-          <Scale className="w-3.5 h-3.5" />
-          <span>Weekly Height & Weight Curve</span>
-        </button>
-      </div>
-
-      {/* TAB 1: STRENGTH PROGRESSION GRAPH & WORKOUT HISTORY */}
-      {activeTab === 'workouts' && (
-        <div className="space-y-6 animate-in fade-in duration-200">
-          {/* STRENGTH UPGRADE GRAPH CARD */}
-          <Card className="p-6 bg-zinc-900/80 border-zinc-800 shadow-xl">
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
-              <div>
-                <div className="flex items-center gap-2">
-                  <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400">
-                    <TrendingUp className="w-4 h-4" />
-                  </div>
-                  <h3 className="text-base font-bold text-zinc-100 font-heading">
-                    Strength Progression & Upgrade Graph
-                  </h3>
-                </div>
-                <p className="text-xs text-zinc-400 mt-1">
-                  Visualize your progressive overload and weight upgrades over time
-                </p>
+      <div className="two-col">
+        <div className="stack">
+          <section className="feature-card">
+            <div>
+              <div className="eyebrow">
+                {dayNames[weekday].toUpperCase()} /{' '}
+                {rest
+                  ? 'REST DAY'
+                  : `${todayRoutine?.start_time || '18:00'} – ${todayRoutine?.end_time || '20:00'}`}
               </div>
-
-              {/* Exercise Selector */}
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs text-zinc-400 font-medium">Focus Exercise:</span>
-                <select
-                  value={activeExerciseForGraph}
-                  onChange={(e) => setSelectedExerciseForGraph(e.target.value)}
-                  className="bg-zinc-950 border border-zinc-700 text-zinc-200 text-xs rounded-xl px-3 py-1.5 focus:outline-none focus:border-indigo-500 font-semibold"
-                >
-                  {exerciseNames.map((ex) => (
-                    <option key={ex} value={ex}>
-                      {ex}
-                    </option>
-                  ))}
-                  {!exerciseNames.includes('Barbell Bench Press') && (
-                    <option value="Barbell Bench Press">Barbell Bench Press</option>
-                  )}
-                  {!exerciseNames.includes('Barbell Squat') && (
-                    <option value="Barbell Squat">Barbell Squat</option>
-                  )}
-                  {!exerciseNames.includes('Overhead Press') && (
-                    <option value="Overhead Press">Overhead Press</option>
-                  )}
-                </select>
-              </div>
-            </div>
-
-            {/* Upgrade Metric Callout Banner */}
-            {strengthUpgradeMetric && (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 mb-6 rounded-2xl bg-zinc-950/60 border border-zinc-800/80">
-                <div>
-                  <span className="text-[10px] uppercase tracking-wider text-zinc-400 font-semibold block">
-                    Starting Weight
-                  </span>
-                  <span className="text-base sm:text-lg font-mono font-bold text-zinc-300">
-                    {strengthUpgradeMetric.firstLift} kg
-                  </span>
-                </div>
-
-                <div>
-                  <span className="text-[10px] uppercase tracking-wider text-zinc-400 font-semibold block">
-                    Current Max Lift
-                  </span>
-                  <span className="text-base sm:text-lg font-mono font-bold text-emerald-400 flex items-center gap-1">
-                    <Trophy className="w-3.5 h-3.5" />
-                    {strengthUpgradeMetric.maxLift} kg
-                  </span>
-                </div>
-
-                <div>
-                  <span className="text-[10px] uppercase tracking-wider text-zinc-400 font-semibold block">
-                    Strength Upgrade
-                  </span>
-                  <span
-                    className={`text-base sm:text-lg font-mono font-bold ${
-                      strengthUpgradeMetric.isUpgrade ? 'text-indigo-400' : 'text-zinc-400'
-                    }`}
-                  >
-                    {strengthUpgradeMetric.isUpgrade ? `+${strengthUpgradeMetric.upgradeKg} kg` : '0 kg'}
-                  </span>
-                </div>
-
-                <div>
-                  <span className="text-[10px] uppercase tracking-wider text-zinc-400 font-semibold block">
-                    Relative Growth
-                  </span>
-                  <span className="text-base sm:text-lg font-mono font-bold text-emerald-400">
-                    +{strengthUpgradeMetric.percentChange}%
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {/* Recharts Line/Area Graph */}
-            {strengthChartData.length < 2 ? (
-              <div className="h-56 flex flex-col items-center justify-center text-center p-6 border border-dashed border-zinc-800 rounded-2xl">
-                <Dumbbell className="w-8 h-8 text-zinc-600 mb-2" />
-                <p className="text-xs font-medium text-zinc-400">
-                  Not enough weight records yet for "{activeExerciseForGraph}".
-                </p>
-                <p className="text-[11px] text-zinc-500 mt-1 max-w-sm">
-                  Log at least 2 sessions for this exercise to generate your strength curve.
-                </p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="mt-4"
-                  onClick={() => {
-                    setExerciseName(activeExerciseForGraph)
-                    setIsWorkoutModalOpen(true)
-                  }}
-                  leftIcon={<Plus className="w-3.5 h-3.5" />}
-                >
-                  Log Lift for {activeExerciseForGraph}
-                </Button>
-              </div>
-            ) : (
-              <div className="h-64 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart
-                    data={strengthChartData}
-                    margin={{ top: 10, right: 20, left: -10, bottom: 0 }}
-                  >
-                    <defs>
-                      <linearGradient id="strengthGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#6366f1" stopOpacity={0.4} />
-                        <stop offset="95%" stopColor="#6366f1" stopOpacity={0.0} />
-                      </linearGradient>
-                    </defs>
-                    <XAxis
-                      dataKey="date"
-                      stroke="#71717a"
-                      fontSize={11}
-                      tickLine={false}
-                      axisLine={{ stroke: '#27272a' }}
-                    />
-                    <YAxis
-                      domain={['dataMin - 5', 'dataMax + 5']}
-                      stroke="#71717a"
-                      fontSize={11}
-                      tickLine={false}
-                      axisLine={{ stroke: '#27272a' }}
-                      tickFormatter={(val) => `${val}kg`}
-                    />
-                    <Tooltip
-                      content={({ active, payload }) => {
-                        if (active && payload && payload.length) {
-                          const d = payload[0].payload
-                          return (
-                            <div className="rounded-xl border border-zinc-700 bg-zinc-900 p-3 shadow-2xl text-xs space-y-1">
-                              <p className="text-zinc-400 text-[10px] uppercase tracking-wider font-semibold">
-                                {d.fullDate}
-                              </p>
-                              <p className="font-mono font-bold text-indigo-300 text-sm">
-                                {d.weight} kg lifted
-                              </p>
-                              {d.sets && d.reps && (
-                                <p className="text-zinc-400 text-[11px]">
-                                  {d.sets} sets × {d.reps} reps
-                                </p>
-                              )}
-                              {d.notes && (
-                                <p className="text-zinc-400 italic text-[11px] pt-1 max-w-xs">
-                                  "{d.notes}"
-                                </p>
-                              )}
-                            </div>
-                          )
-                        }
-                        return null
-                      }}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="weight"
-                      stroke="#6366f1"
-                      strokeWidth={3}
-                      fillOpacity={1}
-                      fill="url(#strengthGradient)"
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-          </Card>
-
-          {/* WORKOUT LOGS HISTORY FEED */}
-          <Card className="p-6 bg-zinc-900/80 border-zinc-800 shadow-xl">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-base font-bold text-zinc-100 font-heading">
-                  Training Log & Workout History
-                </h3>
-                <p className="text-xs text-zinc-400 mt-0.5">
-                  Chronological record of completed sessions, weights, and muscle targets
-                </p>
-              </div>
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => setIsWorkoutModalOpen(true)}
-                leftIcon={<Plus className="w-3.5 h-3.5" />}
+              <h2>
+                {todayRoutine?.name ||
+                  (rest ? 'Time to recharge.' : 'Your evening session.')}
+              </h2>
+              <p>
+                {todayWorkouts.length
+                  ? 'Your workout is saved and checked off in Today.'
+                  : rest
+                    ? 'Give yourself space to recover. Your next session is waiting.'
+                    : 'Follow your routine and record what you actually did.'}
+              </p>
+              <button
+                className="btn"
+                disabled={
+                  date > today ||
+                  fitness.busy ||
+                  fitness.isLoading ||
+                  !!fitness.error
+                }
+                onClick={startWorkout}
               >
-                Log New Session
-              </Button>
+                <Plus size={14} />
+                Log a workout
+              </button>
             </div>
-
-            {isLoading ? (
-              <div className="space-y-3 py-6">
-                <div className="h-14 bg-zinc-800/40 rounded-xl animate-pulse" />
-                <div className="h-14 bg-zinc-800/40 rounded-xl animate-pulse" />
-              </div>
-            ) : workouts.length === 0 ? (
-              <EmptyState
-                icon={<Dumbbell className="w-8 h-8 text-indigo-400" />}
-                title="No workouts logged yet"
-                description="Start tracking your training days, muscle groups, and weights lifted."
-                actionLabel="Log First Workout"
-                onAction={() => setIsWorkoutModalOpen(true)}
-              />
-            ) : (
-              <div className="space-y-3">
-                {workouts.map((item) => {
-                  const muscleData = MUSCLE_PROGRAM.find((m) => m.id === item.muscle_group)
-
-                  return (
-                    <div
-                      key={item.id}
-                      className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl bg-zinc-950/50 border border-zinc-800/80 hover:border-zinc-700 transition-colors gap-3"
-                    >
-                      <div className="space-y-1.5 min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Badge variant="success" size="sm">
-                            {item.workout_type || 'Workout'}
-                          </Badge>
-
-                          {muscleData && (
-                            <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 flex items-center gap-1">
-                              <span>{muscleData.icon}</span>
-                              <span>{muscleData.name.split(' ')[0]}</span>
-                            </span>
-                          )}
-
-                          <span className="text-xs font-mono text-zinc-400 flex items-center gap-1">
-                            <Calendar className="w-3 h-3" />
-                            {item.date}
-                          </span>
-                        </div>
-
-                        <div className="flex items-baseline gap-2">
-                          <h4 className="font-bold text-sm text-zinc-100">
-                            {item.exercise_name || item.workout_type || 'Training Session'}
-                          </h4>
-
-                          {item.weight_lifted != null && (
-                            <span className="font-mono text-xs font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
-                              {item.weight_lifted} kg
-                            </span>
-                          )}
-
-                          {item.sets && item.reps && (
-                            <span className="text-xs font-mono text-zinc-400">
-                              ({item.sets} sets × {item.reps} reps)
-                            </span>
-                          )}
-                        </div>
-
-                        {item.duration_minutes > 0 && (
-                          <span className="text-xs text-indigo-400 font-medium flex items-center gap-1">
-                            <Clock className="w-3 h-3" />
-                            {item.duration_minutes} minutes
-                          </span>
-                        )}
-
-                        {item.notes && (
-                          <p className="text-xs text-zinc-400 leading-relaxed max-w-xl">
-                            {item.notes}
-                          </p>
-                        )}
-                      </div>
-
-                      <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                        <button
-                          onClick={() => setDeletingId(item.id)}
-                          className="p-2 rounded-xl text-zinc-500 hover:text-rose-400 hover:bg-zinc-800 transition-colors cursor-pointer"
-                          title="Delete workout entry"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </Card>
-        </div>
-      )}
-
-      {/* TAB 2: MAIN MUSCLE GROUPS & PROGRAM SPLIT */}
-      {activeTab === 'program' && (
-        <div className="space-y-6 animate-in fade-in duration-200">
-          {/* Weekly Program Split Overview */}
-          <Card className="p-6 bg-zinc-900/80 border-zinc-800 shadow-xl">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-base font-bold text-zinc-100 font-heading">
-                  Weekly Training Program Split
-                </h3>
-                <p className="text-xs text-zinc-400 mt-0.5">
-                  Scheduled daily muscle focus to ensure balanced progressive overload & recovery
-                </p>
-              </div>
-              <Badge variant="info" size="sm">
-                7-Day Blueprint
-              </Badge>
+            <div className="feature-art">
+              <Dumbbell size={39} />
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {WEEKLY_SPLIT_SCHEDULE.map((dayPlan) => (
-                <div
-                  key={dayPlan.day}
-                  className="p-4 rounded-xl bg-zinc-950/60 border border-zinc-800/80 hover:border-zinc-700 transition-colors space-y-1.5"
+          </section>
+          <Panel
+            title="Your weekly routine"
+            subtitle="Monday–Saturday evenings. Edit any day to suit your schedule."
+            action={
+              <button
+                className="text-link"
+                disabled={routines.isLoading || !!routines.error}
+                onClick={editRoutine}
+              >
+                <Pencil size={13} />
+                Edit day
+              </button>
+            }
+          >
+            <div className="routine-days">
+              {[1, 2, 3, 4, 5, 6, 0].map((d) => (
+                <button
+                  className={'chip ' + (routineDay === d ? 'active' : '')}
+                  key={d}
+                  onClick={() => setRoutineDay(d)}
                 >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-zinc-300 uppercase tracking-wider font-mono">
-                      {dayPlan.day}
-                    </span>
-                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
-                      {dayPlan.focus}
-                    </span>
-                  </div>
-                  <p className="text-xs font-semibold text-zinc-100">{dayPlan.muscles}</p>
-                </div>
+                  {dayNames[d].slice(0, 3)}
+                </button>
               ))}
             </div>
-          </Card>
-
-          {/* Muscle Group Breakdown Cards */}
-          <div>
-            <div className="mb-4">
-              <h3 className="text-base font-bold text-zinc-100 font-heading">
-                Main Muscle Groups & Target Exercises
-              </h3>
-              <p className="text-xs text-zinc-400 mt-0.5">
-                Review specific exercises, training focus, and your all-time PR weight for each muscle
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {MUSCLE_PROGRAM.map((muscle) => {
-                const pr = musclePRs[muscle.id]
-
+            <h3 style={{ fontSize: 14, marginBottom: 12 }}>
+              {routine?.name ||
+                (routineDay === 0 ? 'Rest day' : 'Add your workout plan')}
+            </h3>
+            {routine?.exercises.length ? (
+              routine.exercises.map((e) => {
+                const last = previous(e.name)
                 return (
-                  <Card
-                    key={muscle.id}
-                    className="p-5 bg-zinc-900/90 border-zinc-800/80 hover:border-zinc-700 transition-all shadow-md space-y-3"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-2.5">
-                        <span className="text-2xl">{muscle.icon}</span>
-                        <div>
-                          <h4 className="text-sm font-bold text-zinc-100">{muscle.name}</h4>
-                          <span className="text-[10px] font-mono text-zinc-400">{muscle.day}</span>
-                        </div>
-                      </div>
-
-                      {pr && (
-                        <div className="text-right">
-                          <span className="text-[9px] uppercase tracking-wider text-amber-400 font-bold block flex items-center justify-end gap-1">
-                            <Trophy className="w-3 h-3" /> PR
-                          </span>
-                          <span className="text-xs font-mono font-black text-zinc-100">
-                            {pr.weight} kg
-                          </span>
-                        </div>
-                      )}
+                  <div className="task-row" key={e.id}>
+                    <div className="task-main">
+                      <strong>{e.name}</strong>
+                      <p>
+                        {e.sets} sets × {e.reps} reps · {e.weight} kg
+                        {last &&
+                          ` · Last time: ${last.weight} kg × ${last.reps}`}
+                      </p>
                     </div>
-
-                    <p className="text-xs text-zinc-400 leading-relaxed">{muscle.description}</p>
-
-                    <div>
-                      <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider block mb-1.5">
-                        Key Exercises:
-                      </span>
-                      <div className="flex flex-wrap gap-1.5">
-                        {muscle.recommendedExercises.map((ex) => (
-                          <button
-                            key={ex}
-                            type="button"
-                            onClick={() => {
-                              setSelectedMuscle(muscle.id)
-                              setExerciseName(ex)
-                              setIsWorkoutModalOpen(true)
-                            }}
-                            className="text-[10px] font-medium px-2 py-1 rounded-lg bg-zinc-950/80 border border-zinc-800 text-zinc-300 hover:text-indigo-300 hover:border-indigo-500/40 transition-colors cursor-pointer"
-                          >
-                            + {ex}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="pt-2 border-t border-zinc-800/60 flex items-center justify-between">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          setSelectedMuscle(muscle.id)
-                          setExerciseName(muscle.recommendedExercises[0])
-                          setIsWorkoutModalOpen(true)
-                        }}
-                        className="text-xs text-indigo-400 hover:text-indigo-300 p-0"
-                      >
-                        Log {muscle.name.split(' ')[0]} Workout →
-                      </Button>
-                    </div>
-                  </Card>
+                  </div>
                 )
-              })}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* TAB 3: WEEKLY HEIGHT & BODY WEIGHT CURVE */}
-      {activeTab === 'biometrics' && (
-        <div className="space-y-6 animate-in fade-in duration-200">
-          <Card className="p-6 bg-zinc-900/80 border-zinc-800 shadow-xl">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-base font-bold text-zinc-100 font-heading">
-                  Body Weight & Height Progression (kg)
-                </h3>
-                <p className="text-xs text-zinc-400 mt-0.5">
-                  Consistent weekly check-ins to monitor muscle gain, fat loss, and body composition
-                </p>
-              </div>
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => setIsBiometricModalOpen(true)}
-                leftIcon={<Plus className="w-3.5 h-3.5" />}
-              >
-                Log This Week's Metrics
-              </Button>
-            </div>
-
-            {weightChartData.length < 2 ? (
-              <div className="h-48 flex flex-col items-center justify-center text-center p-6 border border-dashed border-zinc-800 rounded-2xl">
-                <Scale className="w-8 h-8 text-zinc-600 mb-2" />
-                <p className="text-xs text-zinc-400">
-                  Log at least 2 weekly weight check-ins to visualize your weight curve.
-                </p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="mt-3"
-                  onClick={() => setIsBiometricModalOpen(true)}
-                >
-                  Log Biometrics Now
-                </Button>
-              </div>
+              })
             ) : (
-              <div className="h-60 w-full">
+              <Empty>
+                {(routine?.is_rest ?? routineDay === 0)
+                  ? 'Rest is part of the plan.'
+                  : 'Add exercises you want to follow. You can change them as you learn.'}
+              </Empty>
+            )}
+          </Panel>
+          <Panel title="Workout log" subtitle={dayLabel(date)}>
+            {!todayWorkouts.length && (
+              <Empty>No workout logged for this date.</Empty>
+            )}
+            {todayWorkouts.map((group) => (
+              <article key={group[0].id} className="session-row">
+                <div className="session-heading">
+                  <strong>{group[0].workout_type || 'Workout'}</strong>
+                  <span className="pill">
+                    {Math.max(...group.map((g) => g.duration_minutes))} min
+                  </span>
+                </div>
+                {group.map((row) => (
+                  <div key={row.id}>
+                    <div className="table-wrap">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Exercise</th>
+                            <th>Sets × reps</th>
+                            <th>Weight</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {oldExercises(row).map((e) => (
+                            <tr key={e.id}>
+                              <td>{e.name}</td>
+                              <td>
+                                {e.sets} × {e.reps}
+                              </td>
+                              <td>{e.weight} kg</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    {row.notes && <p style={{ marginTop: 8 }}>{row.notes}</p>}
+                    <div className="form-actions">
+                      <button
+                        className="text-link"
+                        onClick={() => {
+                          setExercises(oldExercises(row))
+                          setWorkoutEditor(row)
+                        }}
+                      >
+                        Edit {group.length > 1 ? 'entry' : 'workout'}
+                      </button>
+                      <button
+                        className="icon-btn"
+                        aria-label="Delete workout entry"
+                        onClick={() =>
+                          setDeletion({ table: 'fitness', id: row.id })
+                        }
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </article>
+            ))}
+          </Panel>
+          <Panel
+            title="Strength over time"
+            subtitle="Compare the same exercise, including its sets and reps."
+          >
+            {exerciseNames.length ? (
+              <>
+                <Field label="Exercise">
+                  <select
+                    value={selectedExercise}
+                    onChange={(e) => setExerciseName(e.target.value)}
+                  >
+                    {exerciseNames.map((n) => (
+                      <option key={n}>{n}</option>
+                    ))}
+                  </select>
+                </Field>
+                <div className="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Sets × reps</th>
+                        <th>Weight</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {strength
+                        .filter((e) => e.name === selectedExercise)
+                        .sort((a, b) => b.date.localeCompare(a.date))
+                        .slice(0, 12)
+                        .map((e, i) => (
+                          <tr key={e.sessionId + e.id + i}>
+                            <td>
+                              <button
+                                className="text-link"
+                                onClick={() => setDate(e.date)}
+                              >
+                                {e.date}
+                              </button>
+                            </td>
+                            <td>
+                              {e.sets} × {e.reps}
+                            </td>
+                            <td>{e.weight} kg</td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            ) : (
+              <Empty>
+                Your exercise history will appear after your first workout.
+              </Empty>
+            )}
+          </Panel>
+        </div>
+        <div className="stack">
+          <div id="meals">
+            <Panel
+              title="A little meal planning"
+              subtitle={dayLabel(date)}
+              action={<Utensils size={17} />}
+            >
+              {!selectedMeals.length && (
+                <Empty>
+                  Plan meals you actually enjoy.
+                  <br />
+                  Save them once and reuse them.
+                </Empty>
+              )}
+              {selectedMeals.map((m) => (
+                <div className="meal-row" key={m.id}>
+                  <span className="meal-label">{m.slot}</span>
+                  <div className="meal-body">
+                    {m.meal}
+                    {m.note && <small>{m.note}</small>}
+                    <select
+                      aria-label={m.meal + ' status'}
+                      value={m.status}
+                      disabled={date > today || meals.busy}
+                      style={{ marginTop: 7, fontSize: 10, padding: 5 }}
+                      onChange={(e) =>
+                        ignoreHandled(
+                          meals.save({
+                            ...m,
+                            status: e.target.value as MealPlan['status'],
+                          }),
+                        )
+                      }
+                    >
+                      <option value="planned">Planned</option>
+                      <option value="followed">Followed plan</option>
+                      <option value="changed">Changed meal</option>
+                    </select>
+                  </div>
+                  <button
+                    className="icon-btn"
+                    aria-label={'Edit ' + m.meal}
+                    onClick={() => setMealEditor(m)}
+                  >
+                    <Pencil size={13} />
+                  </button>
+                  <button
+                    className="icon-btn"
+                    aria-label={'Delete ' + m.meal}
+                    onClick={() => setDeletion({ table: 'meals', id: m.id })}
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              ))}
+              <button
+                className="text-link view-all"
+                disabled={meals.isLoading || !!meals.error}
+                onClick={() =>
+                  setMealEditor({ date, slot: 'Breakfast', status: 'planned' })
+                }
+              >
+                <Plus size={14} />
+                Add a meal
+              </button>
+              {selectedMeals.length > 0 && (
+                <div style={{ marginTop: 18 }}>
+                  <button
+                    className="btn secondary small"
+                    disabled={copying || meals.busy}
+                    onClick={async () => {
+                      setCopying(true)
+                      setCopyMessage('')
+                      try {
+                        const all = await listRecords('meal_plans', user!.id)
+                        const target = shiftDay(date, 1)
+                        for (const m of selectedMeals) {
+                          if (
+                            !all.some(
+                              (x) =>
+                                x.date === target &&
+                                x.slot === m.slot &&
+                                x.meal === m.meal,
+                            )
+                          )
+                            await meals.save({
+                              date: target,
+                              slot: m.slot,
+                              meal: m.meal,
+                              status: 'planned',
+                              note: m.note,
+                            })
+                        }
+                        setCopyMessage('Meals copied to ' + target)
+                      } catch {
+                        setCopyMessage(
+                          'Could not copy all meals. Retry to copy the remaining meals.',
+                        )
+                      } finally {
+                        setCopying(false)
+                      }
+                    }}
+                  >
+                    <Copy size={12} />
+                    {copying ? 'Copying…' : 'Copy meals to next day'}
+                  </button>
+                  {copyMessage && (
+                    <p className="muted" role="status" style={{ marginTop: 8 }}>
+                      {copyMessage}
+                    </p>
+                  )}
+                </div>
+              )}
+            </Panel>
+          </div>
+          <Panel
+            title="Body measurements"
+            subtitle="Keep a record of your weight and height."
+            action={<Scale size={17} />}
+          >
+            <button
+              className="btn secondary"
+              disabled={date > today || fitness.isLoading || !!fitness.error}
+              onClick={() => setMeasurementEditor({ date })}
+            >
+              <Plus size={14} />
+              Add measurement
+            </button>
+            {weights.length > 1 ? (
+              <div
+                className="progress-chart"
+                role="img"
+                aria-label="Body weight trend in kilograms"
+              >
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart
-                    data={weightChartData}
-                    margin={{ top: 10, right: 20, left: 0, bottom: 0 }}
+                    data={weights.map((w) => ({
+                      date: w.date,
+                      weight: w.weight,
+                    }))}
+                    margin={{ top: 25, right: 10, left: -22, bottom: 0 }}
                   >
                     <XAxis
                       dataKey="date"
-                      stroke="#71717a"
-                      fontSize={11}
+                      tickFormatter={(d) => d.slice(5)}
+                      tick={{ fontSize: 9, fill: 'var(--muted)' }}
+                      axisLine={false}
                       tickLine={false}
-                      axisLine={{ stroke: '#27272a' }}
                     />
                     <YAxis
-                      domain={['dataMin - 1', 'dataMax + 1']}
-                      stroke="#71717a"
-                      fontSize={11}
+                      domain={['auto', 'auto']}
+                      tick={{ fontSize: 9, fill: 'var(--muted)' }}
+                      axisLine={false}
                       tickLine={false}
-                      axisLine={{ stroke: '#27272a' }}
-                      tickFormatter={(val) => `${val}kg`}
                     />
                     <Tooltip
-                      content={({ active, payload }) => {
-                        if (active && payload && payload.length) {
-                          const d = payload[0].payload
-                          return (
-                            <div className="rounded-xl border border-zinc-700 bg-zinc-900 p-2.5 shadow-xl text-xs font-mono">
-                              <p className="text-zinc-400">{d.fullDate}</p>
-                              <p className="font-bold text-emerald-400 mt-1">{d.weight} kg</p>
-                            </div>
-                          )
-                        }
-                        return null
+                      contentStyle={{
+                        background: 'var(--surface)',
+                        borderColor: 'var(--line)',
+                        borderRadius: 8,
+                        color: 'var(--ink)',
+                        fontSize: 11,
                       }}
                     />
                     <Line
                       type="monotone"
                       dataKey="weight"
-                      stroke="#10b981"
-                      strokeWidth={3}
-                      dot={{ r: 5, fill: '#10b981' }}
-                      activeDot={{ r: 7, fill: '#34d399' }}
+                      stroke="var(--accent)"
+                      strokeWidth={2}
+                      dot={{ r: 3 }}
+                      isAnimationActive={false}
                     />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
-            )}
-          </Card>
-
-          {/* Biometric History Table */}
-          <Card className="p-6 bg-zinc-900/80 border-zinc-800 shadow-xl">
-            <h3 className="text-base font-bold text-zinc-100 font-heading mb-3">
-              Weekly Biometrics Log
-            </h3>
-            {weightLogs.length === 0 ? (
-              <div className="text-center py-6 text-xs text-zinc-500">
-                No biometric logs yet. Log your weekly height and weight to track physical changes.
-              </div>
             ) : (
-              <div className="space-y-2">
-                {weightLogs.map((log) => (
-                  <div
-                    key={log.id}
-                    className="flex items-center justify-between p-3 rounded-xl bg-zinc-950/40 border border-zinc-800 text-xs"
+              <p className="muted" style={{ marginTop: 15 }}>
+                Add two weight entries to see your trend.
+              </p>
+            )}
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Kg</th>
+                    <th>Cm</th>
+                    <th>
+                      <span className="sr-only">Actions</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {measurements.slice(0, 12).map((m) => (
+                    <tr key={m.id}>
+                      <td>{m.date}</td>
+                      <td>{m.weight ?? '—'}</td>
+                      <td>{m.height ?? '—'}</td>
+                      <td>
+                        <button
+                          className="icon-btn"
+                          aria-label={'Edit measurement ' + m.date}
+                          onClick={() => setMeasurementEditor(m)}
+                        >
+                          <Pencil size={12} />
+                        </button>
+                        <button
+                          className="icon-btn"
+                          aria-label={'Delete measurement ' + m.date}
+                          onClick={() =>
+                            setDeletion({ table: 'fitness', id: m.id })
+                          }
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Panel>
+          <Panel title="Past sessions">
+            <div className="stack">
+              {[...new Set(allSessions.map((g) => g[0].date))]
+                .slice(0, 10)
+                .map((d) => (
+                  <button
+                    key={d}
+                    className="text-link"
+                    onClick={() => setDate(d)}
                   >
-                    <div className="flex items-center gap-3">
-                      <span className="font-mono text-zinc-400">{log.date}</span>
-                      <span className="font-bold text-zinc-200">
-                        Weight: <span className="text-emerald-400">{log.weight} kg</span>
-                      </span>
-                      {log.height && (
-                        <span className="text-zinc-400">
-                          Height: <span className="text-indigo-300">{log.height} cm</span>
-                        </span>
-                      )}
-                    </div>
-
-                    <button
-                      onClick={() => setDeletingId(log.id)}
-                      className="p-1.5 rounded-lg text-zinc-500 hover:text-rose-400 hover:bg-zinc-800 transition-colors"
-                      title="Delete log"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+                    {dayLabel(d)}
+                    <ArrowRight size={12} />
+                  </button>
                 ))}
-              </div>
-            )}
-          </Card>
+              {!allSessions.length && (
+                <p className="muted">Your training history will grow here.</p>
+              )}
+            </div>
+          </Panel>
         </div>
+      </div>
+      {workoutEditor && (
+        <Dialog
+          title={workoutEditor.id ? 'Edit workout' : 'Log your workout'}
+          onClose={() => setWorkoutEditor(null)}
+        >
+          <Form
+            busy={fitness.busy}
+            onSubmit={async (data) => {
+              const list = checkedExercises()
+              if (!list.length) throw new Error('Add at least one exercise.')
+              await fitness.save({
+                ...workoutEditor,
+                date: workoutEditor.date || date,
+                workout_completed: true,
+                workout_type: textValue(data, 'name'),
+                duration_minutes: numberValue(data, 'duration'),
+                exercises: list,
+                notes: textValue(data, 'notes'),
+              })
+              setWorkoutEditor(null)
+            }}
+          >
+            <Field label="Workout name">
+              <input
+                required
+                name="name"
+                defaultValue={workoutEditor.workout_type || 'Evening workout'}
+              />
+            </Field>
+            <ExerciseEditor rows={exercises} onChange={setExercises} />
+            <Field label="Duration in minutes">
+              <input
+                type="number"
+                name="duration"
+                min={1}
+                max={1440}
+                required
+                defaultValue={workoutEditor.duration_minutes || 60}
+              />
+            </Field>
+            <Field label="Notes (optional)">
+              <textarea
+                rows={2}
+                name="notes"
+                defaultValue={workoutEditor.notes || ''}
+                placeholder="How did it feel?"
+              />
+            </Field>
+          </Form>
+        </Dialog>
       )}
-
-      {/* MODAL 1: LOG WORKOUT (DAY, MUSCLE, EXERCISE, WEIGHT, SETS/REPS) */}
-      <Modal
-        isOpen={isWorkoutModalOpen}
-        onClose={() => setIsWorkoutModalOpen(false)}
-        title="Log Workout & Muscle Strength"
-        description="Record your workout day, targeted muscle, exercise, weight lifted, and sets/reps"
-        maxWidth="lg"
-        position="right"
-      >
-        <form onSubmit={handleSaveWorkout} className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <Input
-              label="Workout Date"
-              type="date"
-              value={workoutDate}
-              onChange={(e) => setWorkoutDate(e.target.value)}
-              required
-            />
-            <Input
-              label="Day Focus / Routine"
-              placeholder="e.g. Push Day, Pull Day, Heavy Legs"
-              value={workoutType}
-              onChange={(e) => setWorkoutType(e.target.value)}
-              required
-            />
-          </div>
-
-          {/* Muscle Group Selector */}
-          <div>
-            <label className="text-xs font-semibold text-zinc-300 block mb-2">
-              Target Muscle Group
+      {routineEditor && (
+        <Dialog
+          title={'Plan ' + dayNames[routineEditor.weekday ?? 0]}
+          onClose={() => setRoutineEditor(null)}
+        >
+          <Form
+            busy={routines.busy}
+            onSubmit={async (data) => {
+              const start = textValue(data, 'start'),
+                end = textValue(data, 'end')
+              if (!restEdit && end <= start)
+                throw new Error('End time must be after start time.')
+              await routines.save({
+                ...routineEditor,
+                name: textValue(data, 'name'),
+                is_rest: restEdit,
+                start_time: start || '18:00',
+                end_time: end || '20:00',
+                exercises: restEdit ? [] : checkedExercises(),
+              })
+              setRoutineEditor(null)
+            }}
+          >
+            <Field label="Name">
+              <input name="name" required defaultValue={routineEditor.name} />
+            </Field>
+            <label className="check-status">
+              <input
+                type="checkbox"
+                checked={restEdit}
+                onChange={(e) => setRestEdit(e.target.checked)}
+              />
+              Rest day
             </label>
-            <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-              {MUSCLE_PROGRAM.map((m) => (
-                <button
-                  key={m.id}
-                  type="button"
-                  onClick={() => handleSelectMuscle(m.id)}
-                  className={`flex flex-col items-center justify-center p-2 rounded-xl border transition-all text-xs cursor-pointer ${
-                    selectedMuscle === m.id
-                      ? 'bg-indigo-600/25 border-indigo-500 text-zinc-100 shadow-sm ring-1 ring-indigo-500/30'
-                      : 'bg-zinc-950/50 border-zinc-800 text-zinc-400 hover:border-zinc-700'
-                  }`}
-                >
-                  <span className="text-lg">{m.icon}</span>
-                  <span className="text-[10px] font-semibold mt-1 truncate w-full text-center">
-                    {m.name.split(' ')[0]}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Exercise Selection */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs font-semibold text-zinc-300">
-                Exercise / Workout Name
-              </label>
-              <span className="text-[10px] text-zinc-500">Pick preset or type custom</span>
-            </div>
-
-            {/* Recommended exercise chips */}
-            {selectedMuscle && (
-              <div className="flex flex-wrap gap-1.5 mb-2">
-                {MUSCLE_PROGRAM.find((m) => m.id === selectedMuscle)?.recommendedExercises.map(
-                  (rec) => (
-                    <button
-                      key={rec}
-                      type="button"
-                      onClick={() => setExerciseName(rec)}
-                      className={`text-[10px] px-2 py-0.5 rounded-lg border transition-all cursor-pointer ${
-                        exerciseName === rec
-                          ? 'bg-indigo-600 text-white border-indigo-500'
-                          : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200'
-                      }`}
-                    >
-                      {rec}
-                    </button>
-                  )
-                )}
-              </div>
+            {!restEdit && (
+              <>
+                <div className="form-grid">
+                  <Field label="Start">
+                    <input
+                      required
+                      type="time"
+                      name="start"
+                      defaultValue={routineEditor.start_time}
+                    />
+                  </Field>
+                  <Field label="End">
+                    <input
+                      required
+                      type="time"
+                      name="end"
+                      defaultValue={routineEditor.end_time}
+                    />
+                  </Field>
+                </div>
+                <ExerciseEditor rows={exercises} onChange={setExercises} />
+              </>
             )}
-
-            <Input
-              placeholder="e.g. Barbell Bench Press"
-              value={exerciseName}
-              onChange={(e) => setExerciseName(e.target.value)}
-              required
-            />
-          </div>
-
-          {/* Weight Lifted, Sets & Reps */}
-          <div className="grid grid-cols-3 gap-3">
-            <Input
-              label="Weight Lifted (kg)"
-              type="number"
-              step="0.5"
-              placeholder="e.g. 85"
-              value={weightLifted}
-              onChange={(e) => setWeightLifted(e.target.value)}
-              required
-            />
-            <Input
-              label="Sets"
-              type="number"
-              min={1}
-              placeholder="e.g. 4"
-              value={sets}
-              onChange={(e) => setSets(e.target.value)}
-              required
-            />
-            <Input
-              label="Reps / Set"
-              type="number"
-              min={1}
-              placeholder="e.g. 8"
-              value={reps}
-              onChange={(e) => setReps(e.target.value)}
-              required
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <Input
-              label="Duration (Minutes)"
-              type="number"
-              min={0}
-              placeholder="45"
-              value={duration}
-              onChange={(e) => setDuration(e.target.value)}
-            />
-          </div>
-
-          <Textarea
-            label="Workout Notes & Progression Feedback"
-            placeholder="e.g. New PR today, +2.5kg increase from last week, explosive bar speed..."
-            rows={2}
-            value={workoutNotes}
-            onChange={(e) => setWorkoutNotes(e.target.value)}
-          />
-
-          <div className="flex justify-end gap-2 pt-3 border-t border-zinc-800">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsWorkoutModalOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" variant="primary" size="sm">
-              Save Workout
-            </Button>
-          </div>
-        </form>
-      </Modal>
-
-      {/* MODAL 2: LOG WEEKLY HEIGHT & WEIGHT BIOMETRICS */}
-      <Modal
-        isOpen={isBiometricModalOpen}
-        onClose={() => setIsBiometricModalOpen(false)}
-        title="Log Weekly Height & Body Weight"
-        description="Record your weekly body weight and height to update your BMI and trend curve"
-        maxWidth="sm"
-        position="center"
-      >
-        <form onSubmit={handleSaveBiometric} className="space-y-4">
-          <Input
-            label="Check-in Date"
-            type="date"
-            value={biometricDate}
-            onChange={(e) => setBiometricDate(e.target.value)}
-            required
-          />
-
-          <div className="grid grid-cols-2 gap-3">
-            <Input
-              label="Body Weight (kg)"
-              type="number"
-              step="0.1"
-              placeholder="e.g. 76.4"
-              value={bodyWeightInput}
-              onChange={(e) => setBodyWeightInput(e.target.value)}
-              required
-              autoFocus
-            />
-
-            <Input
-              label="Height (cm)"
-              type="number"
-              step="0.5"
-              placeholder="e.g. 178"
-              value={bodyHeightInput}
-              onChange={(e) => setBodyHeightInput(e.target.value)}
-              required
-            />
-          </div>
-
-          {bodyWeightInput && bodyHeightInput && (
-            <div className="p-3 rounded-xl bg-zinc-950/60 border border-zinc-800 text-xs">
-              <span className="text-zinc-400 block mb-1">Calculated BMI Preview:</span>
-              <span className="font-mono text-emerald-400 font-bold text-sm">
-                {computeBMI(parseFloat(bodyWeightInput), parseFloat(bodyHeightInput)) ?? '—'}
-              </span>
-            </div>
-          )}
-
-          <div className="flex justify-end gap-2 pt-3 border-t border-zinc-800">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsBiometricModalOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" variant="primary" size="sm">
-              Save Metrics
-            </Button>
-          </div>
-        </form>
-      </Modal>
-
-      {/* DELETE CONFIRMATION DIALOG */}
-      <ConfirmDialog
-        isOpen={Boolean(deletingId)}
-        onClose={() => setDeletingId(null)}
-        onConfirm={async () => {
-          if (deletingId) {
-            await deleteFitnessLog(deletingId)
-            setDeletingId(null)
+          </Form>
+        </Dialog>
+      )}
+      {measurementEditor && (
+        <Dialog
+          title={
+            measurementEditor.id ? 'Edit measurement' : 'Record a measurement'
           }
-        }}
-        title="Delete Fitness Record"
-        message="Are you sure you want to delete this fitness entry?"
-        confirmText="Delete"
-      />
-    </div>
+          onClose={() => setMeasurementEditor(null)}
+        >
+          <Form
+            onSubmit={async (data) => {
+              const weight = textValue(data, 'weight')
+                  ? numberValue(data, 'weight')
+                  : null,
+                height = textValue(data, 'height')
+                  ? numberValue(data, 'height')
+                  : null
+              if (weight === null && height === null)
+                throw new Error('Enter your weight or height.')
+              await fitness.save({
+                ...measurementEditor,
+                date: textValue(data, 'date'),
+                workout_completed: measurementEditor.workout_completed || false,
+                duration_minutes: measurementEditor.duration_minutes || 0,
+                weight,
+                height,
+              })
+              setMeasurementEditor(null)
+            }}
+          >
+            <Field label="Date">
+              <input
+                type="date"
+                name="date"
+                required
+                max={today}
+                defaultValue={measurementEditor.date}
+              />
+            </Field>
+            <div className="form-grid">
+              <Field label="Body weight (kg)">
+                <input
+                  name="weight"
+                  type="number"
+                  min={1}
+                  max={500}
+                  step="0.1"
+                  defaultValue={measurementEditor.weight ?? ''}
+                />
+              </Field>
+              <Field label="Height (cm)">
+                <input
+                  name="height"
+                  type="number"
+                  min={30}
+                  max={300}
+                  step="0.1"
+                  defaultValue={measurementEditor.height ?? ''}
+                />
+              </Field>
+            </div>
+            <p className="muted">
+              Either measurement is enough. Record your actual measurements.
+            </p>
+          </Form>
+        </Dialog>
+      )}
+      {mealEditor && (
+        <Dialog
+          title={mealEditor.id ? 'Edit meal' : 'Plan a meal'}
+          onClose={() => setMealEditor(null)}
+        >
+          <Form
+            onSubmit={async (data) => {
+              const meal = textValue(data, 'meal')
+              if (!meal) throw new Error('Enter a meal.')
+              await meals.save({
+                ...mealEditor,
+                date,
+                slot: textValue(data, 'slot') as MealPlan['slot'],
+                meal,
+                status: mealEditor.status || 'planned',
+                note: textValue(data, 'note'),
+              })
+              setMealEditor(null)
+            }}
+          >
+            <Field label="Meal time">
+              <select name="slot" defaultValue={mealEditor.slot}>
+                {slots.map((s) => (
+                  <option key={s}>{s}</option>
+                ))}
+              </select>
+            </Field>
+            <Field
+              label="What are you having?"
+              hint="Choose a previous meal or type a new one."
+            >
+              <input
+                name="meal"
+                list="saved-meals"
+                required
+                defaultValue={mealEditor.meal}
+                placeholder="Rice, vegetables, and…"
+              />
+              <datalist id="saved-meals">
+                {mealOptions.map((m) => (
+                  <option value={m} key={m} />
+                ))}
+              </datalist>
+            </Field>
+            <Field label="Portion, preparation, or changes (optional)">
+              <textarea rows={2} name="note" defaultValue={mealEditor.note} />
+            </Field>
+          </Form>
+        </Dialog>
+      )}
+      {deletion && (
+        <Dialog title="Remove this entry?" onClose={() => setDeletion(null)}>
+          <Form
+            submit="Remove entry"
+            onCancel={() => setDeletion(null)}
+            onSubmit={async () => {
+              await (deletion.table === 'fitness' ? fitness : meals).remove(
+                deletion.id,
+              )
+              setDeletion(null)
+            }}
+          >
+            <p className="muted">Only the selected entry will be removed.</p>
+          </Form>
+        </Dialog>
+      )}
+    </>
   )
 }
