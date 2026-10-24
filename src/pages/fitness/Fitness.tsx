@@ -1,4 +1,6 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
+import { SavedNameInput } from '../../features/life/SavedNameInput'
+import { workoutNameOptions } from '../../features/life/workoutNames'
 import {
   Plus,
   Dumbbell,
@@ -77,7 +79,9 @@ function oldExercises(row: FitnessLog): ExerciseSet[] {
 function ExerciseEditor({
   rows,
   onChange,
+  suggestions,
 }: {
+  suggestions: string[]
   rows: ExerciseSet[]
   onChange: (rows: ExerciseSet[]) => void
 }) {
@@ -87,15 +91,14 @@ function ExerciseEditor({
     <div>
       {rows.map((r) => (
         <div key={r.id} className="exercise-row">
-          <Field label="Exercise">
-            <input
-              aria-label="Exercise name"
-              required
-              value={r.name}
-              onChange={(e) => edit(r.id, 'name', e.target.value)}
-              placeholder="Exercise name"
-            />
-          </Field>
+          <SavedNameInput
+            label="Exercise"
+            ariaLabel="Exercise name"
+            options={suggestions}
+            value={r.name}
+            onChange={(name) => edit(r.id, 'name', name)}
+            placeholder="Choose or type an exercise"
+          />
           <Field label="Sets">
             <input
               type="number"
@@ -165,6 +168,10 @@ function FitnessContent({
     routines = useRecords('workout_routines'),
     meals = useRecords('meal_plans')
   const { user } = useAuth()
+  const savedNames = useMemo(
+    () => workoutNameOptions(fitness.rows, routines.rows),
+    [fitness.rows, routines.rows],
+  )
   const weekday = new Date(date + 'T12:00:00').getDay()
   const [routineDay, setRoutineDay] = useState(weekday)
   const [workoutEditor, setWorkoutEditor] =
@@ -786,14 +793,22 @@ function FitnessContent({
               setWorkoutEditor(null)
             }}
           >
-            <Field label="Workout name">
-              <input
-                required
-                name="name"
-                defaultValue={workoutEditor.workout_type || 'Evening workout'}
-              />
-            </Field>
-            <ExerciseEditor rows={exercises} onChange={setExercises} />
+            <SavedNameInput
+              label="Workout name"
+              name="name"
+              options={savedNames.workouts}
+              defaultValue={workoutEditor.workout_type || 'Evening workout'}
+              placeholder="Choose or type a workout"
+            />
+            <p className="muted">
+              Choose names from your previous workouts and weekly routines, or
+              type something new.
+            </p>
+            <ExerciseEditor
+              rows={exercises}
+              onChange={setExercises}
+              suggestions={savedNames.exercises}
+            />
             <Field label="Duration in minutes">
               <input
                 type="number"
@@ -838,9 +853,13 @@ function FitnessContent({
               setRoutineEditor(null)
             }}
           >
-            <Field label="Name">
-              <input name="name" required defaultValue={routineEditor.name} />
-            </Field>
+            <SavedNameInput
+              label="Workout name"
+              name="name"
+              options={savedNames.workouts}
+              defaultValue={routineEditor.name}
+              placeholder="Choose or type a workout"
+            />
             <label className="check-status">
               <input
                 type="checkbox"
@@ -869,7 +888,11 @@ function FitnessContent({
                     />
                   </Field>
                 </div>
-                <ExerciseEditor rows={exercises} onChange={setExercises} />
+                <ExerciseEditor
+                  rows={exercises}
+                  onChange={setExercises}
+                  suggestions={savedNames.exercises}
+                />
               </>
             )}
           </Form>

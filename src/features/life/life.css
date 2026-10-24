@@ -1344,3 +1344,77 @@ html.dark .life-dialog {
     animation: none;
   }
 }
+
+.saved-name-field {
+  position: relative;
+  min-width: 0;
+}
+.saved-name-field > label {
+  font-size: 11px;
+  font-weight: 500;
+}
+.saved-name-control {
+  position: relative;
+}
+.saved-name-control input {
+  width: 100%;
+  padding-right: 38px;
+}
+.saved-name-toggle {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  right: 1px;
+  width: 36px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.saved-name-popup {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 5px;
+  z-index: 5;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px #00000018;
+  overflow: hidden;
+}
+.saved-name-caption {
+  font-size: 10px;
+  color: var(--muted);
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.saved-name-popup ul {
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.saved-name-popup li {
+  padding: 10px 9px;
+  min-height: 40px;
+  font-size: 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.saved-name-popup li:hover,
+.saved-name-popup li[aria-selected='true'] {
+  background: var(--soft);
+  color: var(--accent);
+}
+.saved-name-empty {
+  padding: 10px 12px;
+  color: var(--muted);
+  font-size: 11px;
+}

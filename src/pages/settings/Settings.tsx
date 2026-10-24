@@ -20,6 +20,7 @@ const tables: Table[] = [
   'habit_logs',
   'fitness_logs',
   'job_applications',
+  'job_search_resources',
   'english_sessions',
   'meal_plans',
   'workout_routines',
@@ -213,6 +214,14 @@ export function Settings() {
                   removes goals, expenses, income, and journal_entries only when
                   those retired tables are empty. Existing tracking records and
                   accounts are kept.
+                </p>
+                <p className="muted">
+                  For the Jobs search toolkit, also run{' '}
+                  <code>
+                    supabase/migrations/20261024_job_search_resources.sql
+                  </code>
+                  . It adds private keywords, links, and notes without changing
+                  your applications.
                 </p>
                 <p className="muted">
                   For a new project, run <code>supabase/schema.sql</code>, which

@@ -88,6 +88,10 @@ async function modules(cloud = false, cloudError = null) {
   await auth.evaluate()
   const repository = await load('src/lib/repository.ts')
   await repository.evaluate()
+  const workoutNames = await load('src/features/life/workoutNames.ts')
+  await workoutNames.evaluate()
+  const jobSearch = await load('src/features/life/jobSearch.ts')
+  await jobSearch.evaluate()
   const helpers = await load('src/features/life/helpers.ts')
   await helpers.evaluate()
   const records = await load('src/features/life/records.ts')
@@ -98,6 +102,8 @@ async function modules(cloud = false, cloudError = null) {
     repository: repository.namespace.repository,
     records: records.namespace,
     helpers: helpers.namespace,
+    workoutNames: workoutNames.namespace,
+    jobSearch: jobSearch.namespace,
     storage: storage.namespace,
     items,
     localStorage,
@@ -503,4 +509,92 @@ test('a stalled session check offers recovery instead of endless loading', async
   await flush()
   assert.equal(sessions[0].user.id, 'recovered')
   stop()
+})
+
+test('saved workout and exercise choices combine legacy logs and routines without duplicate names', async () => {
+  const { workoutNames: w } = await modules()
+  const logs = [
+    {
+      date: '2026-10-01',
+      workout_type: ' pull  day ',
+      exercise_name: 'Dumbbell row',
+      exercises: undefined,
+    },
+    {
+      date: '2026-10-24',
+      workout_type: 'Pull day',
+      exercises: [{ name: 'dumbbell  row' }, { name: 'Pull-up' }],
+    },
+    { date: '2026-10-24', workout_type: null, weight: 70, exercises: [] },
+  ]
+  const routines = [
+    {
+      name: 'Leg day',
+      is_rest: false,
+      exercises: [{ name: 'Squat' }, { name: ' ' }],
+    },
+    { name: 'Rest day', is_rest: true, exercises: [] },
+  ]
+  const original = JSON.stringify(logs)
+  const result = w.workoutNameOptions(logs, routines)
+  assert.deepEqual(Array.from(result.workouts), ['Pull day', 'Leg day'])
+  assert.deepEqual(Array.from(result.exercises), [
+    'dumbbell row',
+    'Pull-up',
+    'Squat',
+  ])
+  assert.equal(
+    JSON.stringify(logs),
+    original,
+    'suggestions must not rewrite existing records',
+  )
+  assert.equal(w.workoutNameOptions([], []).workouts.length, 0)
+})
+
+
+test('job resources validate web links, preserve search URLs, and copy the right text', async () => {
+  const { jobSearch: j } = await modules()
+  const base = { kind:'platform', title:'  Saved search  ', content:' notes ', url:'https://example.com/jobs?q=frontend%20developer&remote=1', is_pinned:true }
+  const resource = j.prepareJobResource(base)
+  assert.equal(resource.title, 'Saved search')
+  assert.equal(resource.content, 'notes')
+  assert.equal(resource.url, base.url)
+  assert.equal(j.resourceCopyText(resource), base.url)
+  for (const url of ['javascript:alert(1)', 'data:text/html,test', '', 'not a url']) assert.throws(() => j.prepareJobResource({...base,url}))
+  assert.throws(() => j.prepareJobResource({...base,title:' '}))
+  assert.throws(() => j.prepareJobResource({...base,kind:'unknown'}))
+  const keyword = j.prepareJobResource({...base,kind:'keyword',title:'"frontend" AND React',url:''})
+  assert.equal(j.resourceCopyText(keyword), '"frontend" AND React')
+  assert.equal(keyword.url, null)
+  assert.equal(j.resourceCopyText({...keyword,kind:'note',content:'My intro'}), 'My intro')
+})
+
+test('toolkit resources persist, can be edited/deleted, and remain account-scoped', async () => {
+  const { records: r } = await modules()
+  const saved = await r.saveRecord('job_search_resources','user-1',{kind:'keyword',title:'React developer',content:'Remote',url:null,is_pinned:false})
+  const updated = await r.saveRecord('job_search_resources','user-1',{id:saved.id,is_pinned:true})
+  assert.equal(updated.title,'React developer')
+  assert.equal(updated.is_pinned,true)
+  assert.equal((await r.listRecords('job_search_resources','user-2')).length,0)
+  await r.removeRecord('job_search_resources','user-1',saved.id)
+  assert.equal((await r.listRecords('job_search_resources','user-1')).length,0)
+})
+
+test('toolkit setup errors point to its additive migration', async () => {
+  const { records: r } = await modules(true,{code:'PGRST205',message:'table missing'})
+  await assert.rejects(r.listRecords('job_search_resources','user-1'), /20261024_job_search_resources.sql/)
+})
+
+test('job views include technical interviews and sort pinned resources first', async () => {
+  const { jobSearch: j } = await modules()
+  const job = {company:'Example', role:'Engineer',location:'Remote',notes:'Referral',status:'technical',follow_up_date:'2026-10-23',interview_date:'2026-10-26'}
+  assert.equal(j.matchesJob(job,'interview',' remote '),true)
+  assert.equal(j.matchesJob(job,'saved',''),false)
+  assert.equal(j.matchesJob({...job,status:'withdrawn'},'active',''),false)
+  assert.equal(j.nextJobAction(job,'2026-10-24').date,'2026-10-23')
+  assert.equal(j.nextJobAction({...job,status:'rejected'},'2026-10-24'),null)
+  assert.equal(j.nextJobAction({...job,follow_up_date:null,interview_date:'2026-10-20'},'2026-10-24'),null)
+  const resources = [{id:'new',title:'Remote role',content:'',is_pinned:false,updated_at:'2026-10-24'},{id:'pinned',title:'Old role',content:'Remote',is_pinned:true,updated_at:'2026-10-20'}]
+  assert.deepEqual(Array.from(j.sortedResources(resources,'remote'), (r) => r.id),['pinned','new'])
+  assert.equal(resources[0].id,'new')
 })

@@ -234,3 +234,15 @@ export interface WorkoutRoutine {
   created_at: string
   updated_at: string
 }
+
+export interface JobSearchResource {
+  id: string
+  user_id: string
+  kind: 'keyword' | 'platform' | 'note'
+  title: string
+  content: string
+  url: string | null
+  is_pinned: boolean
+  created_at: string
+  updated_at: string
+}

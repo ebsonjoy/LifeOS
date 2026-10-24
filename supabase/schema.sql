@@ -1,4 +1,4 @@
--- LifeOS: the 10 tables used by Today, English, Gym & Food, and Jobs.
+-- LifeOS: the 11 tables used by Today, English, Gym & Food, and Jobs.
 -- Runnable on a new Supabase project or over the previous LifeOS schema.
 -- This file does not delete tables. For the requested empty-table cleanup,
 -- run migrations/20261021_focus_cleanup.sql instead (it includes this setup).
@@ -114,5 +114,26 @@ CREATE TRIGGER on_auth_user_created AFTER INSERT ON auth.users FOR EACH ROW EXEC
 INSERT INTO public.profiles(id,full_name,timezone,onboarding_completed)
 SELECT id,COALESCE(raw_user_meta_data->>'full_name','Your space'),'Asia/Kolkata',true FROM auth.users
 ON CONFLICT(id) DO NOTHING;
+CREATE TABLE IF NOT EXISTS public.job_search_resources (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL CHECK (kind IN ('keyword', 'platform', 'note')),
+  title TEXT NOT NULL CHECK (length(trim(title)) BETWEEN 1 AND 200),
+  content TEXT NOT NULL DEFAULT '',
+  url TEXT,
+  is_pinned BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT job_search_resources_url_check CHECK (
+    (url IS NULL OR url ~* '^https?://[^[:space:]]+$')
+    AND (kind <> 'platform' OR url IS NOT NULL)
+  )
+);
+CREATE INDEX IF NOT EXISTS job_search_resources_user_idx ON public.job_search_resources(user_id);
+ALTER TABLE public.job_search_resources ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS own_records ON public.job_search_resources;
+CREATE POLICY own_records ON public.job_search_resources
+  FOR ALL TO authenticated USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.job_search_resources TO authenticated;
 NOTIFY pgrst, 'reload schema';
 COMMIT;

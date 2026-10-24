@@ -5,7 +5,7 @@ A small personal tracker built with React, TypeScript, Vite, and Supabase.
 - **Today:** three priorities, two extra habits, daily notes, and tomorrow planning.
 - **English:** speaking, listening, reading, and writing practice with saved sessions.
 - **Gym & Food:** editable weekly routines, exercise logs, weight and height history, and meal planning.
-- **Jobs:** applications, interview dates, and follow-ups connected to Today.
+- **Jobs:** applications, interview dates, follow-ups connected to Today, and a searchable toolkit for keywords, platform links, and notes.
 
 ## Run locally
 
@@ -22,7 +22,9 @@ In your project's **SQL Editor**, create a new query, paste the entire contents 
 
 This single transaction creates missing tables, adds the required columns and unique indexes, enables owner access policies, and restores missing profiles for existing accounts. It removes the retired `goals`, `expenses`, `income`, and `journal_entries` tables only if they are empty. It never deletes auth accounts or retained tracking records. If a retired table contains rows, or duplicate daily records prevent creation of a unique index, the transaction fails instead of discarding data.
 
-For a brand-new Supabase project, use [`supabase/schema.sql`](supabase/schema.sql). The current schema contains all ten required tables; no extra migration is needed for a fresh project.
+For the Jobs search toolkit, also run [`supabase/migrations/20261024_job_search_resources.sql`](supabase/migrations/20261024_job_search_resources.sql). This adds a private table for keywords, links, and notes without changing existing applications. If you already ran the focus cleanup migration, only this new migration is needed.
+
+For a brand-new Supabase project, use [`supabase/schema.sql`](supabase/schema.sql). The current schema contains all eleven required tables; no extra migration is needed for a fresh project.
 
 A `404` for `english_sessions`, `meal_plans`, or `workout_routines` means the database update has not been applied to the configured project. Clearing table rows does not change the schema. Cloud errors are shown in the app and never silently redirected to browser storage.
 
@@ -35,6 +37,8 @@ npm run build
 ```
 
 Tests cover local-date handling, weekly habits, legacy workout grouping, record preservation, schema errors, and storage failures. They use isolated storage and a mocked database client.
+
+The Jobs toolkit supports pinned favourites, copying search phrases and links, editing, and searching saved content. Platform URLs retain query parameters so you can save a filtered job search. Toolkit records are included in data exports; cloud access is restricted to their owner. Application filters include technical interviews under Interview.
 
 Use **Settings → Download my data** for a JSON export. Partial exports identify tables that could not be read. Dates follow the device's timezone; use matching timezone settings across your devices.
 

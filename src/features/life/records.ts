@@ -7,13 +7,21 @@ import type {
   Habit,
   HabitLog,
   JobApplication,
+  JobSearchResource,
   MealPlan,
   PlannedTask,
   WorkoutRoutine,
 } from '../../types'
 
 export class SchemaUpdateRequired extends Error {
-  constructor() { super('Database update needed: run supabase/migrations/20261021_focus_cleanup.sql in your Supabase SQL editor, then click Retry.'); this.name = 'SchemaUpdateRequired' }
+  constructor(table?: string) {
+    super(
+      table === 'job_search_resources'
+        ? 'Search toolkit setup needed: run supabase/migrations/20261024_job_search_resources.sql in your Supabase SQL Editor, then click Retry. Your applications are still available.'
+        : 'Database update needed: run supabase/migrations/20261021_focus_cleanup.sql in your Supabase SQL editor, then click Retry.',
+    )
+    this.name = 'SchemaUpdateRequired'
+  }
 }
 
 export interface Records {
@@ -23,6 +31,7 @@ export interface Records {
   habit_logs: HabitLog
   fitness_logs: FitnessLog
   job_applications: JobApplication
+  job_search_resources: JobSearchResource
   english_sessions: EnglishSession
   meal_plans: MealPlan
   workout_routines: WorkoutRoutine
@@ -35,6 +44,7 @@ const keys: Record<Table, string> = {
   habit_logs: 'habit_logs_',
   fitness_logs: 'fitness_',
   job_applications: 'jobs_',
+  job_search_resources: 'job_resources_',
   english_sessions: 'english_',
   meal_plans: 'meals_',
   workout_routines: 'routines_',
@@ -49,7 +59,8 @@ export async function listRecords<K extends Table>(
       .select('*')
       .eq('user_id', userId)
     if (error) {
-      if (['42P01', 'PGRST205', '42703', 'PGRST204'].includes(error.code)) throw new SchemaUpdateRequired()
+      if (['42P01', 'PGRST205', '42703', 'PGRST204'].includes(error.code))
+        throw new SchemaUpdateRequired(table)
       throw new Error(error.message)
     }
     return data as Records[K][]
@@ -88,7 +99,10 @@ export async function saveRecord<K extends Table>(
       .select()
       .single()
     if (error) {
-      if (['42P01', 'PGRST205', '42703', 'PGRST204', '42P10'].includes(error.code)) throw new SchemaUpdateRequired()
+      if (
+        ['42P01', 'PGRST205', '42703', 'PGRST204', '42P10'].includes(error.code)
+      )
+        throw new SchemaUpdateRequired(table)
       throw new Error(error.message)
     }
     return data as Records[K]
@@ -106,7 +120,8 @@ export async function saveRecord<K extends Table>(
         (r as WorkoutRoutine).weekday ===
           (input as Partial<WorkoutRoutine>).weekday),
   )
-  if (input.id && i < 0) throw new Error('This record no longer exists. Refresh and try again.')
+  if (input.id && i < 0)
+    throw new Error('This record no longer exists. Refresh and try again.')
   const saved = {
     created_at: now,
     ...(i >= 0 ? rows[i] : {}),
