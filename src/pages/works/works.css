@@ -1,0 +1,252 @@
+.work-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 26px;
+}
+.work-metrics > div {
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+.work-metrics span {
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--muted);
+  display: block;
+}
+.work-metrics strong {
+  font-size: 30px;
+  font-weight: 500;
+  display: block;
+  margin-top: 10px;
+}
+.work-toolbar {
+  display: flex;
+  gap: 12px;
+  margin: 22px 0;
+}
+.work-toolbar input,
+.work-toolbar select {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  padding: 12px 14px;
+  border-radius: 9px;
+  color: var(--ink);
+  font: inherit;
+  min-width: 0;
+}
+.work-toolbar input {
+  flex: 1;
+}
+.work-project-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+.work-project-card {
+  text-align: left;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 26px;
+  background: var(--surface);
+  color: var(--ink);
+  transition: border-color 0.15s;
+  min-width: 0;
+}
+.work-project-card:hover {
+  border-color: var(--accent);
+}
+.work-card-top,
+.work-card-bottom,
+.work-progress-label,
+.work-task-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.work-card-top {
+  color: var(--accent);
+  margin-bottom: 20px;
+}
+.work-project-card h2 {
+  font-size: 20px;
+  letter-spacing: -0.5px;
+  overflow-wrap: anywhere;
+}
+.work-project-card > p {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 8px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.work-progress-label {
+  font-size: 11px;
+  color: var(--muted);
+  margin: 22px 0 10px;
+}
+.work-progress-label strong {
+  color: var(--accent);
+  font-size: 15px;
+}
+.life progress {
+  display: block;
+  width: 100%;
+  height: 6px;
+  border: 0;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--soft);
+  accent-color: var(--accent);
+}
+.life progress::-webkit-progress-bar {
+  background: var(--soft);
+}
+.life progress::-webkit-progress-value {
+  background: var(--accent);
+  border-radius: 6px;
+}
+.life progress::-moz-progress-bar {
+  background: var(--accent);
+}
+.work-card-bottom {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 18px;
+  flex-wrap: wrap;
+}
+.work-badge {
+  border-radius: 6px;
+  padding: 4px 8px;
+  background: var(--soft);
+  color: var(--accent);
+  font-size: 10px;
+  text-transform: capitalize;
+}
+.work-badge.completed {
+  color: var(--success);
+  background: var(--success-soft);
+}
+.work-badge.incomplete {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 8%, var(--surface));
+}
+.work-badge.todo {
+  color: var(--muted);
+  background: var(--paper);
+}
+.work-badge.in_progress {
+  background: var(--peach);
+  color: var(--ink);
+}
+.work-late {
+  color: var(--danger);
+}
+.work-back {
+  margin-bottom: 22px;
+}
+.work-notes {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  line-height: 1.8;
+}
+.work-project-dates,
+.work-task-dates {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 16px;
+}
+.work-project-dates a {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+}
+.life .work-small {
+  color: var(--muted);
+  font-size: 11px;
+  margin-top: 14px;
+}
+.work-task-section {
+  margin-top: 30px;
+}
+.work-task-list {
+  display: grid;
+  gap: 14px;
+}
+.work-task {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 22px;
+}
+.work-task-heading {
+  align-items: flex-start;
+}
+.work-task-heading > div {
+  min-width: 0;
+}
+.work-task h3 {
+  font-size: 15px;
+  margin-top: 10px;
+  overflow-wrap: anywhere;
+}
+.work-task-tags {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.work-priority {
+  color: var(--muted);
+  font-size: 10px;
+  text-transform: capitalize;
+}
+.work-priority.high {
+  color: var(--danger);
+}
+.work-task-notes {
+  margin-top: 14px;
+  font-size: 12px;
+}
+.work-task-notes p {
+  margin-top: 10px;
+}
+.work-task-actions {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 18px;
+}
+.work-task-actions > .text-link {
+  font-size: 11px;
+}
+@media (max-width: 800px) {
+  .work-project-grid {
+    grid-template-columns: 1fr;
+  }
+  .work-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 480px) {
+  .work-toolbar {
+    flex-direction: column;
+  }
+  .work-project-card,
+  .work-task {
+    padding: 20px;
+  }
+  .work-metrics > div {
+    padding: 18px;
+  }
+}

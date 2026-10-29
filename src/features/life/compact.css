@@ -1,0 +1,649 @@
+/* Shared density rules: information first, with comfortable controls. */
+.life .page-content {
+  max-width: 1440px;
+  padding: 20px 24px 24px;
+}
+.life .top-bar {
+  height: 54px;
+  padding: 0 24px;
+}
+.life .header-reminder {
+  padding: 7px 24px;
+  gap: 10px;
+}
+.life .reminder-copy strong {
+  display: inline;
+  margin-right: 10px;
+}
+.life .life-sidebar {
+  width: 208px;
+  padding: 22px 14px 16px;
+}
+.life .nav-label {
+  margin: 28px 12px 10px;
+}
+.life .nav-item {
+  padding: 10px 12px;
+  margin-bottom: 3px;
+}
+.life .sidebar-note {
+  display: none;
+}
+.life .settings-link {
+  margin-top: auto;
+}
+.life .profile-chip {
+  padding-top: 14px;
+}
+.life .life-footer {
+  padding: 14px 24px 20px;
+}
+.life .page-intro {
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.life .page-intro > div:first-child {
+  min-width: 0;
+}
+.life .page-intro .eyebrow {
+  display: none;
+}
+.life .page-intro h1 {
+  font-size: 25px;
+  font-weight: 600;
+  letter-spacing: -0.65px;
+  margin: 0 0 5px;
+  line-height: 1.25;
+}
+.life .page-intro p {
+  font-size: 12px;
+  line-height: 1.5;
+}
+.life .stack {
+  gap: 14px;
+}
+.life .two-col,
+.life .equal-col {
+  gap: 16px;
+  align-items: start;
+}
+.life .panel {
+  padding: 16px;
+  border-radius: 10px;
+  min-width: 0;
+}
+.life .panel-heading {
+  margin-bottom: 12px;
+  gap: 10px;
+}
+.life .panel-heading h2 {
+  font-size: 14px;
+}
+.life .panel-heading p {
+  font-size: 11px;
+  line-height: 1.5;
+}
+.life .empty-note {
+  padding: 16px 12px;
+}
+.life .section-row {
+  margin: 16px 0 10px;
+}
+.life .report-toolbar {
+  margin-bottom: 14px;
+  gap: 12px;
+}
+.life .daily-review {
+  padding: 10px 14px;
+  margin: 12px 0;
+  gap: 10px;
+}
+.life .summary-strip {
+  margin: 12px 0 16px;
+  gap: 12px;
+}
+.life .summary-item {
+  padding: 12px 14px;
+}
+.life .summary-item strong {
+  font-size: 23px;
+  margin: 4px 0;
+  line-height: 1.25;
+}
+.life .summary-item p {
+  margin-top: 4px;
+}
+.life .feature-card {
+  padding: 16px;
+  gap: 16px;
+}
+.life .feature-card h2 {
+  font-size: 21px;
+  margin: 6px 0;
+}
+.life .feature-card p {
+  margin-bottom: 12px;
+}
+.life .feature-art {
+  display: none;
+}
+.life .session-row,
+.life .task-row {
+  padding: 10px 0;
+}
+.life .view-all {
+  margin-top: 10px;
+}
+.life .skill-tabs {
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.life .plan-items {
+  gap: 8px;
+}
+.life .plan-item {
+  padding: 12px;
+  border-radius: 8px;
+}
+.life .plan-item h3 {
+  margin: 4px 0;
+}
+.life .plan-item-bottom {
+  margin-top: 10px;
+}
+.life .today-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  color: var(--muted);
+  font-size: 12px;
+  padding: 0 0 12px;
+}
+.life .today-counts strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+.life .report-area {
+  padding: 10px 0;
+  gap: 10px;
+}
+.life .report-area p {
+  margin-top: 2px;
+}
+.life .report-time-row {
+  padding: 9px 0;
+}
+.life .report-details {
+  margin-top: 10px;
+}
+.life .report-details summary {
+  padding: 7px 0;
+}
+.life .timetable-intro {
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.life .time-cards {
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.life .plans-layout .time-cards {
+  grid-template-columns: 1fr;
+}
+.life .time-card {
+  padding: 12px;
+  border-radius: 8px;
+}
+.life .time-card .section-row {
+  margin: 0;
+}
+.life .time-values {
+  margin: 10px 0;
+  gap: 10px;
+}
+.life .time-values strong {
+  font-size: 16px;
+}
+.life .report-note {
+  margin-top: 10px;
+  line-height: 1.6;
+}
+.life .dashboard-summary {
+  gap: 12px;
+  margin-bottom: 16px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.life .dashboard-summary a {
+  padding: 14px;
+  border-radius: 10px;
+  gap: 5px;
+}
+.life .dashboard-summary strong {
+  font-size: 24px;
+  line-height: 1.3;
+}
+.life .outcome-summary {
+  gap: 12px;
+  padding: 8px 0 12px;
+}
+.life .chart-box {
+  height: 230px;
+}
+.life .area-progress {
+  padding: 12px;
+  gap: 6px;
+}
+.life .habit-page {
+  max-width: none;
+  margin: 0;
+}
+.life .habit-grid {
+  display: grid;
+  gap: 12px;
+  align-items: start;
+}
+.life .habit-card {
+  padding: 14px;
+  margin: 0;
+}
+.life .habit-count-row {
+  margin: 10px 0;
+}
+.life .habit-count strong {
+  font-size: 23px;
+}
+.life .habit-card .habit-goal {
+  margin-top: 4px;
+}
+.life .habit-card .habit-caption {
+  margin-top: 8px;
+}
+.life .habit-history {
+  margin-top: 10px;
+  padding-top: 6px;
+}
+.life .habit-outcome {
+  margin-top: 8px;
+}
+.life .work-metrics {
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.life .work-metrics > div {
+  padding: 12px 14px;
+  border-radius: 10px;
+}
+.life .work-metrics strong {
+  font-size: 23px;
+  margin-top: 4px;
+  line-height: 1.3;
+}
+.life .work-toolbar {
+  margin: 14px 0;
+  gap: 10px;
+}
+.life .work-project-grid {
+  gap: 14px;
+}
+.life .work-project-card {
+  padding: 16px;
+  border-radius: 10px;
+}
+.life .work-card-top {
+  margin-bottom: 12px;
+}
+.life .work-project-card h2 {
+  font-size: 17px;
+}
+.life .work-progress-label {
+  margin: 12px 0 8px;
+}
+.life .work-card-bottom {
+  margin-top: 12px;
+}
+.life .work-back {
+  margin-bottom: 12px;
+}
+.life .work-project-details summary {
+  padding: 4px 0;
+}
+.life .work-project-dates {
+  margin-top: 8px;
+}
+.life .work-task-section {
+  margin-top: 18px;
+}
+.life .work-task-list {
+  gap: 8px;
+}
+.life .work-task {
+  padding: 14px;
+  border-radius: 9px;
+}
+.life .work-task h3 {
+  margin-top: 6px;
+  font-size: 14px;
+}
+.life .work-task-dates {
+  margin-top: 8px;
+}
+.life .work-task-notes {
+  margin-top: 6px;
+}
+.life .work-task-actions {
+  margin-top: 10px;
+  gap: 10px;
+}
+.life .jobs-hero {
+  padding: 16px 18px;
+  gap: 18px;
+  border-radius: 10px;
+  grid-template-columns: 1fr 1fr;
+}
+.life .jobs-hero::after,
+.life .jobs-hero .eyebrow {
+  display: none;
+}
+.life .jobs-hero h1 {
+  font-size: 25px;
+  margin: 0 0 5px;
+  letter-spacing: -0.65px;
+}
+.life .jobs-hero .btn {
+  margin-top: 10px;
+}
+.life .jobs-hero-summary {
+  gap: 12px;
+}
+.life .jobs-hero-summary > div {
+  padding-left: 12px;
+}
+.life .jobs-hero-summary strong {
+  font-size: 26px;
+  line-height: 1.3;
+  margin: 4px 0;
+}
+.life .jobs-day-review {
+  margin-top: 12px;
+}
+.life .jobs-day-review > summary {
+  padding: 8px 0;
+  font-size: 12px;
+  cursor: pointer;
+}
+.life .jobs-review-date {
+  margin-top: 12px;
+}
+.life .jobs-view-switch {
+  margin: 10px 0 16px;
+  gap: 20px;
+}
+.life .jobs-view-switch button {
+  padding: 10px 0;
+}
+.life .jobs-next {
+  margin-bottom: 18px;
+}
+.life .jobs-section-heading {
+  margin-bottom: 12px;
+}
+.life .jobs-section-heading h2 {
+  font-size: 16px;
+}
+.life .jobs-section-heading .eyebrow {
+  display: none;
+}
+.life .jobs-action-grid {
+  gap: 10px;
+}
+.life .jobs-action {
+  padding: 12px;
+  gap: 5px;
+  border-radius: 9px;
+}
+.life .jobs-action .jobs-action-open {
+  margin-top: 5px;
+}
+.life .jobs-action-empty {
+  padding: 14px;
+}
+.life .job-grid {
+  gap: 14px;
+}
+.life .job-card {
+  padding: 16px;
+  border-radius: 10px;
+}
+.life .premium-job-card h3 {
+  font-size: 16px;
+  margin: 12px 0 6px;
+}
+.life .toolkit-grid {
+  gap: 14px;
+}
+.life .toolkit-panel {
+  border-radius: 10px;
+}
+.life .toolkit-panel > header {
+  padding: 16px;
+}
+.life .toolkit-heading {
+  margin-bottom: 12px;
+}
+.life .toolkit-entries {
+  padding: 0 16px;
+}
+.life .toolkit-entry {
+  padding: 12px 0;
+}
+.life .toolkit-empty {
+  padding: 20px;
+}
+@media (min-width: 1001px) {
+  .life .habit-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1200px) {
+  .life .work-task {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 20px;
+    align-items: center;
+  }
+  .life .work-task-heading {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .life .work-task-dates {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  .life .work-task-notes {
+    grid-column: 1/-1;
+    grid-row: 3;
+  }
+  .life .work-task-actions {
+    grid-column: 2;
+    grid-row: 1/3;
+    margin-top: 0;
+  }
+}
+@media (max-width: 1000px) {
+  .life .two-col,
+  .life .equal-col {
+    grid-template-columns: 1fr;
+  }
+  .life .dashboard-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .life .time-cards {
+    grid-template-columns: 1fr;
+  }
+  .life .time-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: center;
+  }
+  .life .time-card .section-row {
+    grid-column: 1/-1;
+  }
+  .life .time-card .time-values {
+    margin: 0;
+  }
+  .life .time-card > p {
+    grid-column: 1/-1;
+  }
+}
+@media (max-width: 800px) {
+  .life .page-content {
+    padding: 16px;
+  }
+  .life .top-bar {
+    height: 52px;
+    padding: 0 16px;
+  }
+  .life .header-reminder {
+    padding: 8px 16px;
+  }
+  .life .page-intro {
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .life .page-intro h1 {
+    font-size: 23px;
+  }
+  .life .page-intro > .day-picker {
+    width: 100%;
+  }
+  .life .panel {
+    padding: 14px;
+  }
+  .life .dashboard-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .life .report-area {
+    flex-wrap: nowrap;
+  }
+  .life .report-area .outcome-tag {
+    margin-left: 0;
+    font-size: 10px;
+  }
+  .life .report-area > svg:last-child {
+    display: none;
+  }
+  .life .outcome-buttons button {
+    min-height: 40px;
+    font-size: 11px;
+  }
+  .life .icon-btn {
+    min-width: 36px;
+    min-height: 36px;
+  }
+  .life .day-picker {
+    gap: 4px;
+  }
+  .life .day-picker input {
+    width: 127px;
+  }
+  .life .jobs-hero {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  .life .jobs-hero-summary span {
+    font-size: 9px;
+  }
+  .life .jobs-hero-summary strong {
+    font-size: 23px;
+  }
+  .life .jobs-hero-summary p {
+    font-size: 11px;
+  }
+}
+@media (max-width: 480px) {
+  .life .page-intro > div:first-child {
+    flex: 1 1 100%;
+  }
+  .life .time-card {
+    display: block;
+  }
+  .life .time-values {
+    margin: 10px 0;
+  }
+  .life .summary-item {
+    padding: 10px;
+  }
+  .life .summary-item .eyebrow {
+    font-size: 9px;
+    letter-spacing: 0.4px;
+  }
+  .life .summary-item strong {
+    font-size: 21px;
+  }
+  .life .summary-item p {
+    font-size: 10px;
+  }
+}
+
+.life .previous-plans {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+}
+.life .previous-plans > summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+}
+.life .previous-plans > summary span {
+  margin-left: 8px;
+  color: var(--muted);
+  font-weight: 400;
+}
+.life .previous-plans > p {
+  margin: 10px 0;
+  line-height: 1.6;
+}
+.life .previous-plan-list {
+  max-height: 280px;
+  overflow-y: auto;
+  margin: 8px 0 12px;
+}
+.life .previous-plan-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  min-height: 44px;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+}
+.life .previous-plan-option input {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  accent-color: var(--accent);
+}
+.life .previous-plan-option > span {
+  min-width: 0;
+}
+.life .previous-plan-option strong {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.life .previous-plan-option small {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+}
+.life .previous-plan-added {
+  margin-left: auto;
+}

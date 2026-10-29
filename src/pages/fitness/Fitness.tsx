@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { SavedNameInput } from '../../features/life/SavedNameInput'
+import { DailyReview } from '../../features/life/DailyReview'
 import { workoutNameOptions } from '../../features/life/workoutNames'
 import {
   Plus,
@@ -274,12 +275,13 @@ function FitnessContent({
     <>
       <PageIntro
         eyebrow="BUILD STRENGTH, FIND BALANCE"
-        title="Show up for yourself."
+        title="Gym & food"
         description="Your training, meals, and measurements. All in one place."
       >
         <DayPicker date={date} today={today} onChange={setDate} />
       </PageIntro>
       <DataNotice queries={[fitness, routines, meals]} />
+      <DailyReview date={date} today={today} area="gym" name="Gym" />
       <div className="summary-strip">
         <div className="summary-item">
           <span className="eyebrow">GYM THIS WEEK</span>
@@ -565,6 +567,7 @@ function FitnessContent({
                       <option value="planned">Planned</option>
                       <option value="followed">Followed plan</option>
                       <option value="changed">Changed meal</option>
+                      <option value="incomplete">Incomplete / missed</option>
                     </select>
                   </div>
                   <button

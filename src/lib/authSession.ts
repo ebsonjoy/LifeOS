@@ -71,9 +71,17 @@ export function safeReturnPath(value: unknown): string {
   )
     return '/today'
   const path = value.split(/[?#]/)[0]
-  return ['/today', '/english', '/fitness', '/career', '/settings'].includes(
-    path,
-  )
+  return [
+    '/today',
+    '/dashboard',
+    '/plans',
+    '/works',
+    '/habits',
+    '/english',
+    '/fitness',
+    '/career',
+    '/settings',
+  ].includes(path)
     ? value
     : '/today'
 }

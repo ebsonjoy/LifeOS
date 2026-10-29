@@ -6,6 +6,7 @@ import { ToastProvider } from './context/ToastContext'
 import { AuthProvider } from './context/AuthContext'
 import { ProtectedRoute } from './components/auth/ProtectedRoute'
 import { PageTitle } from './components/layout/PageTitle'
+import { WorkspaceLoading } from './components/ui/LoadingState'
 const AppLayout = lazy(() =>
   import('./components/layout/AppLayout').then((m) => ({
     default: m.AppLayout,
@@ -23,6 +24,20 @@ const English = lazy(() =>
   import('./pages/english/English').then((m) => ({ default: m.English })),
 )
 import './features/life/life.css'
+import './features/life/progress.css'
+import './features/life/compact.css'
+const Dashboard = lazy(() =>
+  import('./pages/dashboard/Dashboard').then((m) => ({ default: m.Dashboard })),
+)
+const Plans = lazy(() =>
+  import('./pages/plans/Plans').then((m) => ({ default: m.Plans })),
+)
+const Works = lazy(() =>
+  import('./pages/works/Works').then((m) => ({ default: m.Works })),
+)
+const Habits = lazy(() =>
+  import('./pages/habits/Habits').then((m) => ({ default: m.Habits })),
+)
 const Today = lazy(() =>
   import('./pages/today/Today').then((m) => ({ default: m.Today })),
 )
@@ -55,13 +70,7 @@ export default function App() {
           <AuthProvider>
             <BrowserRouter>
               <PageTitle />
-              <Suspense
-                fallback={
-                  <div className="p-8" role="status">
-                    Opening your space…
-                  </div>
-                }
-              >
+              <Suspense fallback={<WorkspaceLoading />}>
                 <Routes>
                   {/* Public Auth Routes */}
                   <Route path="/login" element={<Login />} />
@@ -78,12 +87,12 @@ export default function App() {
                     <Route element={<AppLayout />}>
                       <Route
                         path="/"
-                        element={<Navigate to="/today" replace />}
+                        element={<Navigate to="/dashboard" replace />}
                       />
-                      <Route
-                        path="/dashboard"
-                        element={<Navigate to="/today" replace />}
-                      />
+                      <Route path="/dashboard" element={<Dashboard />} />
+                      <Route path="/plans" element={<Plans />} />
+                      <Route path="/works" element={<Works />} />
+                      <Route path="/habits" element={<Habits />} />
                       <Route path="/english" element={<English />} />
                       <Route path="/today" element={<Today />} />
                       <Route path="/career" element={<Career />} />

@@ -1,14 +1,25 @@
 .life,
 .life-dialog {
-  --paper: #f7f8f4;
-  --surface: #fff;
-  --ink: #25382f;
-  --muted: #738077;
-  --line: #e4e9e1;
-  --accent: #3e6b50;
-  --soft: #edf3e9;
-  --peach: #f7eee3;
-  --danger: #a84040;
+  --brand: #4F46E5;
+  --brand-hover: #4338CA;
+  --on-brand: #ffffff;
+  --brand-muted: #C7D2FE;
+  --on-accent: #ffffff;
+  --success: #10B981;
+  --success-soft: #ECFDF5;
+  --chart-purple: #8B5CF6;
+  --chart-gold: #F59E0B;
+  --chart-blue: #3B82F6;
+  --chart-neutral: #94A3B8;
+  --paper: #F8FAFC;
+  --surface: #FFFFFF;
+  --ink: #0F172A;
+  --muted: #64748B;
+  --line: #E2E8F0;
+  --accent: #4F46E5;
+  --soft: #EEF2FF;
+  --peach: #F1F5F9;
+  --danger: #EF4444;
   color: var(--ink);
   font-family: var(--font-sans);
   font-size: 14px;
@@ -16,16 +27,68 @@
 }
 html.dark .life,
 html.dark .life-dialog {
-  --paper: #171e1a;
-  --surface: #202922;
-  --ink: #e5ebe3;
-  --muted: #a0afa3;
-  --line: #344036;
-  --accent: #98c5a0;
-  --soft: #2b392d;
-  --peach: #393127;
-  --danger: #f2a29c;
+  --brand: #4F46E5;
+  --brand-hover: #4338CA;
+  --on-accent: #ffffff;
+  --on-brand: #ffffff;
+  --brand-muted: #A5B4FC;
+  --button: #4F46E5;
+  --button-hover: #4338CA;
+  --success: #34D399;
+  --success-soft: rgba(16, 185, 129, 0.16);
+  --chart-purple: #A78BFA;
+  --chart-gold: #FBBF24;
+  --chart-blue: #60A5FA;
+  --chart-neutral: #64748B;
+  --paper: #0F172A;
+  --surface: #1E293B;
+  --ink: #E2E8F0;
+  --muted: #94A3B8;
+  --line: #334155;
+  --accent: #6366F1;
+  --soft: rgba(99, 102, 241, 0.14);
+  --peach: #1E293B;
+  --danger: #F87171;
   color-scheme: dark;
+}
+/* Primary and secondary controls in modern Indigo / Slate */
+.life .btn:hover:not(:disabled),
+.life-dialog .btn:hover:not(:disabled) {
+  background: var(--brand-hover);
+}
+.life .btn.secondary:hover:not(:disabled),
+.life-dialog .btn.secondary:hover:not(:disabled) {
+  background: var(--paper);
+}
+html.dark .life .btn,
+html.dark .life-dialog .btn,
+html.dark .life .auth-submit {
+  background: var(--button);
+  color: var(--on-brand);
+  border: 1px solid transparent;
+}
+html.dark .life .btn:hover:not(:disabled),
+html.dark .life-dialog .btn:hover:not(:disabled),
+html.dark .life .auth-submit:hover:not(:disabled) {
+  background: var(--button-hover);
+}
+html.dark .life .btn.secondary,
+html.dark .life-dialog .btn.secondary {
+  background: var(--surface);
+  color: var(--ink);
+  border-color: var(--line);
+}
+html.dark .life .btn.secondary:hover:not(:disabled),
+html.dark .life-dialog .btn.secondary:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.05);
+}
+html.dark .life .jobs-hero {
+  border: 1px solid var(--line);
+}
+html.dark .life .habit-log-one.btn {
+  background: var(--surface);
+  color: var(--habit-color);
+  border-color: var(--habit-color);
 }
 .life {
   min-height: 100vh;
@@ -130,7 +193,7 @@ html.dark .life-dialog {
 .nav-dot {
   width: 6px;
   height: 6px;
-  background: #c7a36b;
+  background: var(--accent);
   border-radius: 100%;
   margin-left: auto;
 }
@@ -313,7 +376,7 @@ html.dark .life-dialog {
   gap: 8px;
   border: 1px solid transparent;
   background: var(--accent);
-  color: var(--surface);
+  color: var(--on-accent);
   font-size: 11px;
   font-weight: 600;
   padding: 11px 17px;
@@ -615,8 +678,8 @@ html.dark .life-dialog {
   margin-bottom: 8px;
 }
 .week-dot.completed span {
-  background: var(--accent);
-  color: var(--surface);
+  background: var(--success);
+  color: var(--on-accent);
 }
 .week-dot.current span {
   border-color: var(--accent);
@@ -744,8 +807,8 @@ html.dark .life-dialog {
   box-shadow: 0 25px 90px #0003;
 }
 .life-dialog::backdrop {
-  background: #13231970;
-  backdrop-filter: blur(3px);
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
 }
 .dialog-inner {
   padding: 27px;

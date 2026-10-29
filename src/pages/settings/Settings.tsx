@@ -14,6 +14,9 @@ import {
   textValue,
 } from '../../features/life/ui'
 const tables: Table[] = [
+  'work_projects',
+  'work_tasks',
+  'daily_activity',
   'daily_logs',
   'daily_plans',
   'habits',
@@ -97,7 +100,7 @@ export function Settings() {
     <>
       <PageIntro
         eyebrow="MAKE IT YOURS"
-        title="A space that fits you."
+        title="Settings"
         description="Your profile, appearance, and saved history."
       />
       <div className="equal-col">
@@ -208,6 +211,11 @@ export function Settings() {
               <summary>Database update & setup instructions</summary>
               <div className="stack">
                 <p className="muted">
+                  For Works projects and tasks, run{' '}
+                  <code>supabase/migrations/20261028_works.sql</code>. It
+                  preserves your existing records.
+                </p>
+                <p className="muted">
                   For an existing Supabase project, run the complete migration{' '}
                   <code>supabase/migrations/20261021_focus_cleanup.sql</code> in
                   its SQL editor. It adds the missing tables and fields, and
@@ -222,6 +230,16 @@ export function Settings() {
                   </code>
                   . It adds private keywords, links, and notes without changing
                   your applications.
+                </p>
+                <p className="muted">
+                  For good/bad habits and count targets, run{' '}
+                  <code>supabase/migrations/20261027_habit_counts.sql</code>.
+                  Existing habits and daily entries are preserved.
+                </p>
+                <p className="muted">
+                  For the dashboard, time records, and complete/incomplete
+                  reviews, run{' '}
+                  <code>supabase/migrations/20261027_dashboard_plans.sql</code>.
                 </p>
                 <p className="muted">
                   For a new project, run <code>supabase/schema.sql</code>, which

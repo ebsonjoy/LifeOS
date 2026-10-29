@@ -25,12 +25,14 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     const applyDark = () => {
       root.classList.add('dark')
       root.classList.remove('light')
+      document.querySelector('meta[name="theme-color"]')?.setAttribute('content', '#0f172a')
       setIsDark(true)
     }
 
     const applyLight = () => {
       root.classList.remove('dark')
       root.classList.add('light')
+      document.querySelector('meta[name="theme-color"]')?.setAttribute('content', '#f8fafc')
       setIsDark(false)
     }
 

@@ -18,7 +18,7 @@ export function scheduleAt(tasks: PlannedTask[], now: Date) {
     .filter(
       (t) =>
         t.date === date &&
-        !t.completed &&
+        (t.status ? t.status === 'planned' : !t.completed) &&
         /^([01]\d|2[0-3]):[0-5]\d$/.test(t.start_time),
     )
     .sort(

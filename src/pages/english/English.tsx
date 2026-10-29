@@ -13,6 +13,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { useRecords } from '../../features/life/data'
+import { DailyReview } from '../../features/life/DailyReview'
 import { recommendedSkill, shiftDay, skills } from '../../features/life/helpers'
 import {
   DataNotice,
@@ -332,12 +333,13 @@ function EnglishContent({
     <>
       <PageIntro
         eyebrow="YOUR FIRST PRIORITY"
-        title="Find your voice."
+        title="English"
         description="Real conversations. Clearer writing. A little practice every day."
       >
         <DayPicker date={date} today={today} onChange={setDate} />
       </PageIntro>
       <DataNotice queries={[english, daily]} />
+      <DailyReview date={date} today={today} area="english" name="English" />
       <div className="summary-strip">
         <div className="summary-item">
           <span className="eyebrow">PRACTICE DAYS</span>

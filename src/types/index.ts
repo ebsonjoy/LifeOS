@@ -13,6 +13,34 @@ export type HabitCategory =
   | 'personal'
 
 export type HabitFrequency = 'daily' | 'weekly'
+export type ProgressStatus = 'planned' | 'completed' | 'incomplete'
+
+export interface WorkProject {
+  id: string
+  user_id: string
+  name: string
+  description: string
+  status: 'active' | 'paused' | 'archived'
+  start_date: string | null
+  due_date: string | null
+  url: string | null
+  created_at: string
+  updated_at: string
+}
+export type WorkTaskStatus = 'todo' | 'in_progress' | 'completed' | 'incomplete'
+export interface WorkTask {
+  id: string
+  user_id: string
+  project_id: string
+  title: string
+  notes: string
+  status: WorkTaskStatus
+  priority: 'low' | 'normal' | 'high'
+  due_date: string | null
+  completed_on: string | null
+  created_at: string
+  updated_at: string
+}
 
 export interface Profile {
   id: string
@@ -33,6 +61,8 @@ export interface Habit {
   description?: string | null
   category: HabitCategory
   frequency: HabitFrequency
+  habit_type?: 'good' | 'bad'
+  period_days?: 1 | 2 | 3 | 7 | null
   target_value: number
   unit: string
   color: string
@@ -49,6 +79,7 @@ export interface HabitLog {
   completed: boolean
   value: number
   note?: string | null
+  outcome?: ProgressStatus | null
   created_at: string
 }
 
@@ -184,6 +215,10 @@ export interface PlannedTask {
   start_time: string // e.g. "10:00"
   end_time: string   // e.g. "10:30"
   completed: boolean
+  status?: ProgressStatus | null
+  actual_minutes?: number | null
+  source_plan_id?: string | null
+  ends_next_day?: boolean
   summary?: string | null
   created_at?: string
   updated_at?: string
@@ -217,7 +252,7 @@ export interface MealPlan {
   date: string
   slot: 'Breakfast' | 'Lunch' | 'Dinner' | 'Snack'
   meal: string
-  status: 'planned' | 'followed' | 'changed'
+  status: 'planned' | 'followed' | 'changed' | 'incomplete'
   note: string
   created_at: string
   updated_at: string
@@ -243,6 +278,21 @@ export interface JobSearchResource {
   content: string
   url: string | null
   is_pinned: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface DailyActivity {
+  id: string
+  user_id: string
+  date: string
+  activity_key: string
+  name: string
+  kind: 'section' | 'time'
+  status: ProgressStatus
+  planned_minutes: number | null
+  actual_minutes: number | null
+  note: string
   created_at: string
   updated_at: string
 }

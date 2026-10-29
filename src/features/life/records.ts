@@ -2,6 +2,7 @@ import { supabase } from '../../lib/supabase'
 import { canQuerySupabase, getLocalData, setLocalData } from '../../lib/storage'
 import type {
   DailyLog,
+  DailyActivity,
   EnglishSession,
   FitnessLog,
   Habit,
@@ -11,20 +12,36 @@ import type {
   MealPlan,
   PlannedTask,
   WorkoutRoutine,
+  WorkProject,
+  WorkTask,
 } from '../../types'
 
 export class SchemaUpdateRequired extends Error {
   constructor(table?: string) {
     super(
-      table === 'job_search_resources'
-        ? 'Search toolkit setup needed: run supabase/migrations/20261024_job_search_resources.sql in your Supabase SQL Editor, then click Retry. Your applications are still available.'
-        : 'Database update needed: run supabase/migrations/20261021_focus_cleanup.sql in your Supabase SQL editor, then click Retry.',
+      table === 'work_projects' || table === 'work_tasks'
+        ? 'Works setup needed: run supabase/migrations/20261028_works.sql in your Supabase SQL Editor, then click Retry. Existing records are preserved.'
+        : table === 'job_search_resources'
+          ? 'Search toolkit setup needed: run supabase/migrations/20261024_job_search_resources.sql in your Supabase SQL Editor, then click Retry. Your applications are still available.'
+          : [
+                'daily_activity',
+                'daily_plans',
+                'habit_logs',
+                'meal_plans',
+              ].includes(table || '')
+            ? 'Progress update needed: run supabase/migrations/20261027_dashboard_plans.sql in your Supabase SQL Editor, then retry. Existing entries are preserved.'
+            : table === 'habits'
+              ? 'Habit update needed: run supabase/migrations/20261027_habit_counts.sql in your Supabase SQL Editor, then retry. Existing habits and logs are preserved.'
+              : 'Database update needed: run supabase/migrations/20261021_focus_cleanup.sql in your Supabase SQL editor, then click Retry.',
     )
     this.name = 'SchemaUpdateRequired'
   }
 }
 
 export interface Records {
+  work_projects: WorkProject
+  work_tasks: WorkTask
+  daily_activity: DailyActivity
   daily_logs: DailyLog
   daily_plans: PlannedTask
   habits: Habit
@@ -38,6 +55,9 @@ export interface Records {
 }
 export type Table = keyof Records
 const keys: Record<Table, string> = {
+  work_projects: 'work_projects_',
+  work_tasks: 'work_tasks_',
+  daily_activity: 'activity_',
   daily_logs: 'daily_logs_',
   daily_plans: 'plans_',
   habits: 'habits_',
@@ -85,19 +105,30 @@ export async function saveRecord<K extends Table>(
     const conflict =
       table === 'daily_logs'
         ? 'user_id,date'
-        : table === 'habit_logs'
-          ? 'user_id,habit_id,date'
-          : table === 'workout_routines'
-            ? 'user_id,weekday'
-            : 'id'
+        : table === 'daily_activity'
+          ? 'user_id,date,activity_key'
+          : table === 'daily_plans' &&
+              (input as Partial<PlannedTask>).source_plan_id
+            ? 'user_id,date,source_plan_id'
+            : table === 'habit_logs'
+              ? 'user_id,habit_id,date'
+              : table === 'workout_routines'
+                ? 'user_id,weekday'
+                : 'id'
     // Let Postgres use its id default for new records keyed by date or weekday.
     if (conflict !== 'id' && !input.id)
       delete (row as Record<string, unknown>).id
-    const { data, error } = await supabase
+    const isCopy =
+      table === 'daily_plans' &&
+      !!(input as Partial<PlannedTask>).source_plan_id &&
+      !input.id
+    const request = supabase
       .from(table)
-      .upsert(row, { onConflict: conflict })
+      .upsert(row, { onConflict: conflict, ignoreDuplicates: isCopy })
       .select()
-      .single()
+    const { data, error } = await (isCopy
+      ? request.maybeSingle()
+      : request.single())
     if (error) {
       if (
         ['42P01', 'PGRST205', '42703', 'PGRST204', '42P10'].includes(error.code)
@@ -105,12 +136,39 @@ export async function saveRecord<K extends Table>(
         throw new SchemaUpdateRequired(table)
       throw new Error(error.message)
     }
+    if (isCopy && !data) {
+      const existing = await supabase
+        .from(table)
+        .select('*')
+        .eq('user_id', userId)
+        .eq('date', (input as Partial<PlannedTask>).date!)
+        .eq('source_plan_id', (input as Partial<PlannedTask>).source_plan_id!)
+        .single()
+      if (existing.error) throw new Error(existing.error.message)
+      return existing.data as Records[K]
+    }
     return data as Records[K]
+  }
+  if (table === 'work_tasks') {
+    const projects = await listRecords('work_projects', userId)
+    if (!projects.some((p) => p.id === (input as Partial<WorkTask>).project_id))
+      throw new Error(
+        'Choose a project in your workspace before saving this task.',
+      )
   }
   const rows = await listRecords(table, userId)
   const i = rows.findIndex(
     (r) =>
       r.id === row.id ||
+      (table === 'daily_activity' &&
+        (r as DailyActivity).date === (input as Partial<DailyActivity>).date &&
+        (r as DailyActivity).activity_key ===
+          (input as Partial<DailyActivity>).activity_key) ||
+      (table === 'daily_plans' &&
+        !!(input as Partial<PlannedTask>).source_plan_id &&
+        (r as PlannedTask).date === (input as Partial<PlannedTask>).date &&
+        (r as PlannedTask).source_plan_id ===
+          (input as Partial<PlannedTask>).source_plan_id) ||
       (table === 'daily_logs' &&
         (r as DailyLog).date === (input as Partial<DailyLog>).date) ||
       (table === 'habit_logs' &&
@@ -122,6 +180,13 @@ export async function saveRecord<K extends Table>(
   )
   if (input.id && i < 0)
     throw new Error('This record no longer exists. Refresh and try again.')
+  if (
+    table === 'daily_plans' &&
+    (input as Partial<PlannedTask>).source_plan_id &&
+    !input.id &&
+    i >= 0
+  )
+    return rows[i]
   const saved = {
     created_at: now,
     ...(i >= 0 ? rows[i] : {}),

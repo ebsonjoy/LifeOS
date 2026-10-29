@@ -3,6 +3,7 @@ import type { FormEvent, ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, X, Loader2, AlertCircle } from 'lucide-react'
 import { dateKey, dayLabel, shiftDay } from './helpers'
+import { RecordsLoading } from '../../components/ui/LoadingState'
 
 export function useToday() {
   const [today, setToday] = useState(dateKey)
@@ -270,12 +271,7 @@ export function DataNotice({
         </button>
       </div>
     )
-  if (queries.some((q) => q.isLoading))
-    return (
-      <p className="muted" role="status">
-        Loading your records…
-      </p>
-    )
+  if (queries.some((q) => q.isLoading)) return <RecordsLoading />
   return null
 }
 export const textValue = (data: FormData, key: string) =>

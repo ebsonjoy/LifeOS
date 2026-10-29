@@ -10,21 +10,21 @@
   flex-direction: column;
   overflow: hidden;
   padding: 42px clamp(32px, 5vw, 80px) 30px;
-  background: #244735;
-  color: #f1f4ec;
+  background: var(--brand);
+  color: #ffffff;
 }
 .auth-story::after {
   content: '';
   width: 620px;
   height: 620px;
-  border: 1px solid #f1f4ec0c;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 50%;
   position: absolute;
   left: -290px;
   bottom: -330px;
   box-shadow:
-    0 0 0 80px #f1f4ec04,
-    0 0 0 160px #f1f4ec03;
+    0 0 0 80px rgba(255, 255, 255, 0.03),
+    0 0 0 160px rgba(255, 255, 255, 0.02);
   pointer-events: none;
 }
 .auth-brand-link {
@@ -37,10 +37,10 @@
   border-radius: 14px;
 }
 .auth-story .lifeos-brand small {
-  color: #c0d0bd;
+  color: var(--brand-muted);
 }
 .auth-story .lifeos-wordmark i {
-  color: #bfd1aa;
+  color: #a5b4fc;
 }
 .auth-story-content {
   margin: auto 0;
@@ -56,7 +56,7 @@
   color: var(--muted);
 }
 .auth-story .auth-eyebrow {
-  color: #c0d0bd;
+  color: var(--brand-muted);
 }
 .auth-story h1 {
   font-family: var(--font-heading);
@@ -68,12 +68,12 @@
 }
 .auth-story h1 em {
   font-style: normal;
-  color: #c1d2aa;
+  color: #a5b4fc;
 }
 .auth-story-content > p {
   font-size: 14px;
   line-height: 1.8;
-  color: #c6d4c7;
+  color: var(--brand-muted);
 }
 .auth-day {
   margin-top: 36px;
@@ -88,7 +88,7 @@
   align-items: center;
   justify-content: space-between;
   font-size: 8px;
-  color: #c6d4c7;
+  color: var(--brand-muted);
   letter-spacing: 1.2px;
   gap: 10px;
   margin-bottom: 6px;
@@ -110,8 +110,8 @@
   width: 34px;
   height: 34px;
   border-radius: 11px;
-  background: #ffffff0b;
-  color: #c1d2aa;
+  background: rgba(255, 255, 255, 0.1);
+  color: #a5b4fc;
   flex-shrink: 0;
 }
 .auth-day strong {
@@ -122,24 +122,24 @@
 .auth-day small {
   display: block;
   font-size: 10px;
-  color: #bbcebd;
+  color: var(--brand-muted);
   margin-top: 2px;
 }
 .auth-day > div > svg,
 .auth-day-dot {
   margin-left: auto;
   flex-shrink: 0;
-  color: #c1d2aa;
+  color: #a5b4fc;
 }
 .auth-day-dot {
   width: 6px;
   height: 6px;
-  background: #c1d2aa;
+  background: #a5b4fc;
   border-radius: 50%;
 }
 .auth-story-footer {
   font-size: 11px;
-  color: #b7c9ba;
+  color: var(--brand-muted);
   position: relative;
   z-index: 1;
 }
@@ -239,16 +239,22 @@
   border-radius: 11px;
   min-height: 51px;
   padding: 14px 18px;
-  background: #315c45;
+  background: var(--brand);
   color: #fff;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   margin-top: 4px;
-  box-shadow: 0 5px 10px #2447350e;
+  box-shadow: 0 5px 12px rgba(79, 70, 229, 0.25);
 }
 .auth-submit:hover {
-  background: #264b37;
+  background: var(--brand-hover);
+}
+html.dark .auth-story h1 em,
+html.dark .auth-story .lifeos-wordmark i,
+html.dark .auth-day-icon,
+html.dark .auth-day > div > svg {
+  color: #a5b4fc;
 }
 .auth-submit:disabled {
   opacity: 0.65;

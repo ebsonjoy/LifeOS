@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
-import { Pencil, Plus, Trash2 } from 'lucide-react'
+import { Plus } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { planStatus } from './progress'
 import type { PlannedTask } from '../../types'
 import { timeLabel } from './helpers'
 import { Panel } from './ui'
@@ -8,19 +10,17 @@ import { Panel } from './ui'
 export function Timetable({
   rows,
   busy,
-  future,
   onEdit,
-  onToggle,
-  onRemove,
+  renderPlan,
+  reusePlans,
 }: {
   rows: PlannedTask[]
   busy: boolean
-  future: boolean
   onEdit: (task: Partial<PlannedTask>) => void
-  onToggle: (task: PlannedTask) => void
-  onRemove: (id: string) => void
+  renderPlan: (task: PlannedTask) => ReactNode
+  reusePlans?: ReactNode
 }) {
-  const [showEmpty, setShowEmpty] = useState(true)
+  const [showEmpty, setShowEmpty] = useState(false)
   const section = useRef<HTMLElement>(null)
   const location = useLocation()
   useEffect(() => {
@@ -53,10 +53,11 @@ export function Timetable({
           </button>
         }
       >
+        {reusePlans}
         <div className="timetable-intro">
           <p className="muted">
             Timed priorities appear here too. Header reminders stay visible
-            until you mark a task done or the day ends.
+            until you review a task or the day ends.
           </p>
           <label>
             <input
@@ -77,7 +78,9 @@ export function Timetable({
             )
             const hourTime = `${String(hour).padStart(2, '0')}:00`
             const continuing = timed.filter(
-              (t) => t.start_time < hourTime && t.end_time > hourTime,
+              (t) =>
+                t.start_time < hourTime &&
+                (t.ends_next_day || t.end_time > hourTime),
             )
             if (!showEmpty && !entries.length && !continuing.length) return null
             return (
@@ -92,51 +95,17 @@ export function Timetable({
                       key={t.id}
                       onClick={() => onEdit(t)}
                     >
-                      {t.completed ? 'Completed' : 'Continues'} · {t.title} ·
-                      until {timeLabel(t.end_time)}
+                      {planStatus(t) === 'completed'
+                        ? 'Complete'
+                        : planStatus(t) === 'incomplete'
+                          ? 'Incomplete'
+                          : 'Continues'}{' '}
+                      · {t.title} · until {timeLabel(t.end_time)}
+                      {t.ends_next_day ? ' next day' : ''}
                     </button>
                   ))}
                   {entries.map((t) => (
-                    <div
-                      className={
-                        'schedule-entry ' + (t.completed ? 'done' : '')
-                      }
-                      key={t.id}
-                    >
-                      <input
-                        type="checkbox"
-                        aria-label={`Complete scheduled ${t.title}`}
-                        checked={t.completed}
-                        disabled={busy || future}
-                        onChange={() => onToggle(t)}
-                      />
-                      <button
-                        className="schedule-title"
-                        onClick={() => onEdit(t)}
-                      >
-                        <strong>{t.title}</strong>
-                        <span>
-                          {timeLabel(t.start_time)}
-                          {t.end_time && ` – ${timeLabel(t.end_time)}`}
-                          {t.category !== 'schedule' ? ' · Priority' : ''}
-                        </span>
-                        {t.summary && <span>{t.summary}</span>}
-                      </button>
-                      <button
-                        className="icon-btn"
-                        aria-label={`Edit scheduled ${t.title}`}
-                        onClick={() => onEdit(t)}
-                      >
-                        <Pencil size={13} />
-                      </button>
-                      <button
-                        className="icon-btn"
-                        aria-label={`Delete scheduled ${t.title}`}
-                        onClick={() => onRemove(t.id)}
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
+                    <div key={t.id}>{renderPlan(t)}</div>
                   ))}
                   {!entries.length && !continuing.length && (
                     <button

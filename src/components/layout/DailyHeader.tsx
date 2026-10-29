@@ -5,6 +5,7 @@ import { Bell, Check } from 'lucide-react'
 import { useRecords } from '../../features/life/data'
 import { dateKey, scheduleAt, timeLabel } from '../../features/life/helpers'
 import { ignoreHandled } from '../../features/life/ui'
+import { planOutcome } from '../../features/life/progress'
 
 export function DailyHeader({ children }: { children: ReactNode }) {
   const [now, setNow] = useState(() => new Date())
@@ -22,7 +23,7 @@ export function DailyHeader({ children }: { children: ReactNode }) {
   }, [])
   const { due, next } = scheduleAt(tasks.rows, now)
   const task = due.at(-1) || next
-  const href = `/today?date=${dateKey(now)}#timetable`
+  const href = `/plans?date=${dateKey(now)}#timetable`
   return (
     <header className="life-header">
       <div className="top-bar">
@@ -76,10 +77,7 @@ export function DailyHeader({ children }: { children: ReactNode }) {
             </>
           ) : (
             <span>
-              No more timed plans today.{' '}
-              <Link to={`/today?date=${dateKey(now)}#timetable`}>
-                View your day
-              </Link>
+              No more timed plans today. <Link to={href}>View your plans</Link>
             </span>
           )}
         </div>
@@ -90,7 +88,7 @@ export function DailyHeader({ children }: { children: ReactNode }) {
                 className="btn secondary"
                 disabled={tasks.busy}
                 onClick={() =>
-                  ignoreHandled(tasks.save({ ...task, completed: true }))
+                  ignoreHandled(tasks.save(planOutcome(task, 'completed')))
                 }
                 aria-label={`Mark ${task.title} done`}
               >

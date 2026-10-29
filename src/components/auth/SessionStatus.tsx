@@ -1,14 +1,15 @@
 import { Link } from 'react-router-dom'
-import { Loader2 } from 'lucide-react'
+import { WorkspaceLoading } from '../ui/LoadingState'
 import { Brand } from '../brand/Brand'
 import { useAuth } from '../../context/AuthContext'
 export function SessionStatus() {
   const { sessionError, retrySession } = useAuth()
+  if (!sessionError) return <WorkspaceLoading label="Restoring your session…" />
   return (
     <div className="session-screen life">
       <div className="session-card">
         <Brand />
-        {sessionError ? (
+        {sessionError && (
           <>
             <h1>Let’s reconnect.</h1>
             <p role="alert">{sessionError}</p>
@@ -17,11 +18,6 @@ export function SessionStatus() {
             </button>
             <Link to="/login">Go to sign in</Link>
           </>
-        ) : (
-          <p role="status">
-            <Loader2 size={18} className="auth-spinner" /> Restoring your
-            session…
-          </p>
         )}
       </div>
     </div>

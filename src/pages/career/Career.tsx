@@ -30,8 +30,11 @@ import {
   nextJobAction,
 } from '../../features/life/jobSearch'
 import { SearchToolkit } from './SearchToolkit'
+import { DailyReview } from '../../features/life/DailyReview'
+import { DayPicker, useDay } from '../../features/life/ui'
 import './career.css'
 export function Career() {
+  const reviewDay = useDay()
   const jobs = useRecords('job_applications'),
     today = useToday()
   const [view, setView] = useState<'applications' | 'toolkit'>('applications')
@@ -62,12 +65,8 @@ export function Career() {
       <section className="jobs-hero">
         <div className="jobs-hero-copy">
           <span className="eyebrow">YOUR NEXT CHAPTER</span>
-          <h1>
-            A little focus.
-            <br />
-            Your next opportunity.
-          </h1>
-          <p>A home for your applications, search ideas, and next steps.</p>
+          <h1>Jobs</h1>
+          <p>Applications, search tools, and next steps.</p>
           <button
             className="btn"
             disabled={jobs.isLoading || !!jobs.error}
@@ -78,19 +77,17 @@ export function Career() {
         </div>
         <div className="jobs-hero-summary" aria-label="Application overview">
           <div>
-            <span>IN PLAY</span>
+            <span>OPEN ROLES</span>
             <strong>
               {jobs.isLoading || jobs.error ? '—' : active.length}
             </strong>
-            <p>Open opportunities</p>
           </div>
           <div>
-            <span>ON YOUR RADAR</span>
+            <span>ACTIONS DUE</span>
             <strong>{jobs.isLoading || jobs.error ? '—' : due.length}</strong>
-            <p>Actions due</p>
           </div>
           <div>
-            <span>GETTING CLOSER</span>
+            <span>INTERVIEWS</span>
             <strong>
               {jobs.isLoading || jobs.error
                 ? '—'
@@ -98,10 +95,26 @@ export function Career() {
                     ['interview', 'technical'].includes(j.status),
                   ).length}
             </strong>
-            <p>At interview stage</p>
           </div>
         </div>
       </section>
+      <details className="jobs-day-review">
+        <summary>Review your job-search day</summary>
+        <div className="jobs-review-date">
+          <span>Job-search day review</span>
+          <DayPicker
+            date={reviewDay.date}
+            today={reviewDay.today}
+            onChange={reviewDay.setDate}
+          />
+        </div>
+        <DailyReview
+          date={reviewDay.date}
+          today={reviewDay.today}
+          area="jobs"
+          name="Job search"
+        />
+      </details>
       <div className="jobs-view-switch" role="group" aria-label="Jobs views">
         <button
           aria-pressed={view === 'applications'}
