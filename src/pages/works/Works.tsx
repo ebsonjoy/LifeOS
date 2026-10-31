@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -6,6 +6,10 @@ import {
   FolderKanban,
   Plus,
   Pencil,
+  Columns3,
+  List,
+  ChartNoAxesCombined,
+  Search,
 } from 'lucide-react'
 import type { WorkProject, WorkTask, WorkTaskStatus } from '../../types'
 import { useRecords } from '../../features/life/data'
@@ -19,9 +23,8 @@ import {
   PageIntro,
   textValue,
   useToday,
-  ignoreHandled,
 } from '../../features/life/ui'
-import { safeLink, dayLabel } from '../../features/life/helpers'
+import { dayLabel } from '../../features/life/helpers'
 import {
   workStats,
   workTaskOutcome,
@@ -29,9 +32,12 @@ import {
   workProjectDates,
   workDate,
   workLink,
-  sortWorkTasks,
+  filterWorkTasks,
+  projectHealth,
+  workColumns,
 } from '../../features/life/works'
-import { OutcomeButtons } from '../../features/life/OutcomeButtons'
+import { WorkBoard, WorkList } from './WorkTaskViews'
+import { ProjectMonitor } from './ProjectMonitor'
 import './works.css'
 
 export function Works() {
@@ -47,7 +53,13 @@ export function Works() {
   const [search, setSearch] = useState(''),
     [projectFilter, setProjectFilter] = useState('active')
   const [taskSearch, setTaskSearch] = useState(''),
-    [taskFilter, setTaskFilter] = useState('open')
+    [taskFilter, setTaskFilter] = useState('all')
+  const [priorityFilter, setPriorityFilter] = useState('all')
+  const [taskPreview, setTaskPreview] = useState<WorkTask | null>(null)
+  const [updateMessage, setUpdateMessage] = useState('')
+  const [moving, setMoving] = useState(false)
+  const moveLock = useRef(false)
+  const view = params.get('view') === 'overview' ? 'overview' : params.get('view') === 'list' ? 'list' : 'board'
   const unavailable =
     projects.isLoading || tasks.isLoading || !!projects.error || !!tasks.error
   const activeIds = new Set(
@@ -68,41 +80,66 @@ export function Works() {
           .includes(search.toLowerCase()),
     )
     .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
-  const shownTasks = sortWorkTasks(
-    projectTasks.filter(
-      (t) =>
-        (taskFilter === 'all' ||
-          (taskFilter === 'open'
-            ? t.status !== 'completed'
-            : taskFilter === 'overdue'
-              ? t.status !== 'completed' && !!t.due_date && t.due_date < today
-              : t.status === taskFilter)) &&
-        (t.title + ' ' + t.notes)
-          .toLowerCase()
-          .includes(taskSearch.toLowerCase()),
-    ),
-  )
+  const shownTasks = filterWorkTasks(projectTasks, {
+    search: taskSearch, status: taskFilter, priority: priorityFilter,
+  }, today)
+  const readOnly = project?.status === 'archived'
+  const taskDisabled = tasks.busy || moving || !!readOnly
+  const health = project ? projectHealth(project, projectTasks, today) : null
   const openProject = (id: string) => {
-    setTaskFilter('open')
+    setTaskFilter('all')
     setTaskSearch('')
-    setParams({ project: id })
+    setPriorityFilter('all')
+    setUpdateMessage('')
+    setParams({ project: id, view: 'board' })
+  }
+  const createTask = (status: WorkTaskStatus = 'todo') => {
+    if (!project || taskDisabled) return
+    setTaskEditor({ project_id: project.id, status, priority: 'normal' })
+  }
+  const openTask = (task: WorkTask) => {
+    if (readOnly) setTaskPreview(task)
+    else setTaskEditor(task)
+  }
+  const moveTask = async (task: WorkTask, status: WorkTaskStatus) => {
+    if (taskDisabled || moveLock.current || task.status === status || task.project_id !== projectId) return
+    moveLock.current = true
+    setMoving(true)
+    setUpdateMessage('Saving task status…')
+    try {
+      await tasks.save(workTaskOutcome(task, status, today))
+      setUpdateMessage(`${task.title} moved to ${workColumns.find(column => column.status === status)?.label}.`)
+    } catch {
+      // useRecords displays the save error; keep the existing task in its column.
+      setUpdateMessage('Could not move task. Your previous status is unchanged. Try again.')
+    } finally {
+      moveLock.current = false
+      setMoving(false)
+    }
+  }
+  const taskViewProps = {
+    tasks: shownTasks, today, disabled: taskDisabled,
+    onEdit: openTask, onMove: (task: WorkTask, status: WorkTaskStatus) => { void moveTask(task, status) },
+    onCreate: createTask,
   }
   return (
     <>
       <PageIntro
-        eyebrow="FROM IDEAS TO FINISHED WORK"
-        title="Works"
-        description="Projects, next steps, and a clear picture of what you’ve finished."
+        eyebrow={project ? 'WORKS / PROJECT WORKSPACE' : 'YOUR PROJECTS, IN ONE PLACE'}
+        title={project?.name || 'Works'}
+        description={project ? 'Plan the work. Follow the progress. Keep the whole project in view.' : 'Create projects, organise tasks, and follow your work from idea to done.'}
       >
-        <button
+        {project ? (
+          <button className="btn secondary" disabled={projects.busy} onClick={() => setProjectEditor(project)}><Pencil size={15} /> Project settings</button>
+        ) : <button
           className="btn"
           disabled={unavailable || projects.busy}
           onClick={() =>
             setProjectEditor({ status: 'active', start_date: today })
           }
         >
-          <Plus size={16} /> New project
-        </button>
+          <Plus size={16} /> Create project
+        </button>}
       </PageIntro>
       <DataNotice queries={[projects, tasks]} />
       {!unavailable && (
@@ -171,6 +208,7 @@ export function Works() {
                     tasks.rows.filter((t) => t.project_id === p.id),
                     today,
                   )
+                  const cardHealth = projectHealth(p, tasks.rows.filter(t => t.project_id === p.id), today)
                   return (
                     <button
                       className="work-project-card"
@@ -189,6 +227,7 @@ export function Works() {
                         </span>
                       </div>
                       <h2>{p.name}</h2>
+                      <span className={'project-health ' + cardHealth.tone}>{cardHealth.label}</span>
                       <p>{p.description || 'One small task at a time.'}</p>
                       <div className="work-progress-label">
                         <span>
@@ -228,230 +267,47 @@ export function Works() {
               >
                 <ArrowLeft size={15} /> All projects
               </button>
-              <Panel
-                title={project.name}
-                subtitle={
-                  project.status === 'archived'
-                    ? 'Archived · your tasks and history are kept.'
-                    : project.status === 'paused'
-                      ? 'Paused · ready when you are.'
-                      : 'Choose the next small step.'
-                }
-                action={
-                  <button
-                    className="text-link"
-                    onClick={() => setProjectEditor(project)}
-                  >
-                    <Pencil size={14} /> Edit project
-                  </button>
-                }
-              >
-                <details className="work-project-details">
-                  <summary>Project details & dates</summary>
-                  {project.description && (
-                    <p className="work-notes">{project.description}</p>
-                  )}
-                  <div className="work-project-dates">
-                    <span>
-                      Started:{' '}
-                      {project.start_date
-                        ? dayLabel(project.start_date)
-                        : 'Not set'}
-                    </span>
-                    <span>
-                      Deadline:{' '}
-                      {project.due_date
-                        ? dayLabel(project.due_date)
-                        : 'Not set'}
-                    </span>
-                    {safeLink(project.url) && (
-                      <a
-                        className="text-link"
-                        href={safeLink(project.url)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        Project link <ArrowUpRight size={14} />
-                      </a>
-                    )}
-                  </div>
-                </details>
-                <div className="work-progress-label">
-                  <span>
-                    {stats.completed} of {stats.total} tasks complete ·{' '}
-                    {stats.inProgress} in progress · {stats.incomplete}{' '}
-                    incomplete
-                  </span>
-                  <strong>{stats.percent}%</strong>
+              <div className="project-command-bar">
+                <div className="project-context">
+                  <span className="project-symbol"><FolderKanban size={22} /></span>
+                  <label className="project-switcher">Project
+                    <select aria-label="Switch project" value={project.id} onChange={event => openProject(event.target.value)}>
+                      {projects.rows.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+                    </select>
+                  </label>
+                  <span className={'project-health ' + health!.tone}>{health!.label}</span>
                 </div>
-                <progress
-                  max={100}
-                  value={stats.percent}
-                  aria-label="Project task completion"
-                />
-              </Panel>
-              <section className="work-task-section" aria-label="Project tasks">
-                <div className="panel-heading">
-                  <div>
-                    <h2>One task at a time</h2>
-                    <p>
-                      {stats.open} open · {stats.overdue} overdue
-                    </p>
-                  </div>
-                  <button
-                    className="btn"
-                    disabled={tasks.busy || project.status === 'archived'}
-                    onClick={() =>
-                      setTaskEditor({
-                        project_id: project.id,
-                        status: 'todo',
-                        priority: 'normal',
-                      })
-                    }
-                  >
-                    <Plus size={15} /> Add task
-                  </button>
-                </div>
-                <div className="work-toolbar">
-                  <input
-                    aria-label="Search tasks"
-                    placeholder="Find a task or note…"
-                    value={taskSearch}
-                    onChange={(e) => setTaskSearch(e.target.value)}
-                  />
-                  <select
-                    aria-label="Task filter"
-                    value={taskFilter}
-                    onChange={(e) => setTaskFilter(e.target.value)}
-                  >
-                    <option value="open">Open tasks</option>
-                    <option value="all">All tasks</option>
-                    <option value="todo">To do</option>
-                    <option value="in_progress">In progress</option>
-                    <option value="completed">Completed</option>
-                    <option value="incomplete">Incomplete</option>
-                    <option value="overdue">Overdue</option>
-                  </select>
-                </div>
-                {!shownTasks.length && (
-                  <Empty>
-                    {projectTasks.length
-                      ? 'No tasks in this view. Choose All tasks to see the full list.'
-                      : 'Add your first task. A clear, small action makes it easier to start.'}
-                  </Empty>
-                )}
-                <div className="work-task-list">
-                  {shownTasks.map((t) => (
-                    <article
-                      className="work-task"
-                      key={t.id}
-                      aria-label={t.title}
-                    >
-                      <div className="work-task-heading">
-                        <div>
-                          <div className="work-task-tags">
-                            <span className={'work-badge ' + t.status}>
-                              {workStatusLabels[t.status]}
-                            </span>
-                            <span className={'work-priority ' + t.priority}>
-                              {t.priority} priority
-                            </span>
-                          </div>
-                          <h3>{t.title}</h3>
-                        </div>
-                        <button
-                          className="icon-btn"
-                          aria-label={'Edit task ' + t.title}
-                          disabled={tasks.busy || project.status === 'archived'}
-                          onClick={() => setTaskEditor(t)}
-                        >
-                          <Pencil size={16} />
-                        </button>
-                      </div>
-                      <div className="work-task-dates">
-                        <span
-                          className={
-                            t.status !== 'completed' &&
-                            t.due_date &&
-                            t.due_date < today
-                              ? 'work-late'
-                              : ''
-                          }
-                        >
-                          {t.due_date
-                            ? (t.status !== 'completed' && t.due_date < today
-                                ? 'Overdue · '
-                                : 'Due ') + dayLabel(t.due_date)
-                            : 'No deadline'}
-                        </span>
-                        {t.completed_on && (
-                          <span>Completed {dayLabel(t.completed_on)}</span>
-                        )}
-                      </div>
-                      {t.notes && (
-                        <details className="work-task-notes">
-                          <summary>Notes & next steps</summary>
-                          <p className="work-notes">{t.notes}</p>
-                        </details>
-                      )}
-                      <div className="work-task-actions">
-                        <OutcomeButtons
-                          label={t.title}
-                          value={
-                            t.status === 'completed' ||
-                            t.status === 'incomplete'
-                              ? t.status
-                              : 'planned'
-                          }
-                          disabled={tasks.busy || project.status === 'archived'}
-                          onChange={(status) =>
-                            ignoreHandled(
-                              tasks.save(
-                                workTaskOutcome(
-                                  t,
-                                  status === 'planned' ? 'todo' : status,
-                                  today,
-                                ),
-                              ),
-                            )
-                          }
-                        />
-                        {t.status !== 'completed' && (
-                          <button
-                            className="text-link"
-                            disabled={
-                              tasks.busy || project.status === 'archived'
-                            }
-                            onClick={() =>
-                              ignoreHandled(
-                                tasks.save(
-                                  workTaskOutcome(
-                                    t,
-                                    t.status === 'in_progress'
-                                      ? 'todo'
-                                      : 'in_progress',
-                                    today,
-                                  ),
-                                ),
-                              )
-                            }
-                          >
-                            {t.status === 'in_progress'
-                              ? 'Mark as To do'
-                              : 'Start task'}
-                          </button>
-                        )}
-                      </div>
-                    </article>
+                <div className="project-mini-progress"><span><strong>{stats.completed}</strong> / {stats.total} done</span><progress max={100} value={stats.percent} aria-label="Project task completion" /><strong>{stats.percent}%</strong></div>
+              </div>
+              <div className="project-view-bar">
+                <nav className="project-views" aria-label="Project views">
+                  {([{key:'board', label:'Board', Icon:Columns3}, {key:'list', label:'List', Icon:List}, {key:'overview', label:'Overview', Icon:ChartNoAxesCombined}] as const).map(({key,label,Icon}) => (
+                    <button key={key} aria-pressed={view === key} className={view === key ? 'selected' : ''} onClick={() => setParams({project:project.id,view:key})}><Icon size={16} />{label}</button>
                   ))}
-                </div>
-                {project.status === 'archived' && (
-                  <p className="work-small">
-                    Restore this project to Active in Edit project to change its
-                    tasks.
-                  </p>
-                )}
-              </section>
+                </nav>
+                <button className="btn" disabled={taskDisabled} onClick={() => createTask()}><Plus size={16} /> Create task</button>
+              </div>
+              {readOnly && <p className="project-readonly">This project is archived. You can browse every task; restore it in Project settings to make changes.</p>}
+              <p className="work-save-status" role="status" aria-live="polite">{updateMessage}</p>
+              {view === 'overview' ? (
+                <ProjectMonitor project={project} tasks={projectTasks} today={today} onOpenTask={openTask} />
+              ) : (
+                <section className="project-task-workspace" aria-label="Project tasks">
+                  <div className="project-filters">
+                    <label className="project-task-search"><Search size={16} aria-hidden="true" /><input aria-label="Search tasks" placeholder="Search tasks, notes, or ID…" value={taskSearch} onChange={event => setTaskSearch(event.target.value)} /></label>
+                    <select aria-label="Task filter" value={taskFilter} onChange={event => setTaskFilter(event.target.value)}>
+                      <option value="all">All statuses</option><option value="open">Open tasks</option><option value="overdue">Overdue</option>
+                      {workColumns.map(({status,label}) => <option key={status} value={status}>{label}</option>)}
+                    </select>
+                    <select aria-label="Priority filter" value={priorityFilter} onChange={event => setPriorityFilter(event.target.value)}><option value="all">All priorities</option><option value="high">High priority</option><option value="normal">Normal priority</option><option value="low">Low priority</option></select>
+                    {(taskSearch || taskFilter !== 'all' || priorityFilter !== 'all') && <button className="text-link" onClick={() => {setTaskSearch('');setTaskFilter('all');setPriorityFilter('all')}}>Clear filters</button>}
+                    <span className="project-result-count">{shownTasks.length} of {stats.total} tasks</span>
+                  </div>
+                  {view === 'board' && <p className="board-help">Drag tasks between columns, or use a task’s status menu. Open a title to see details.</p>}
+                  {!shownTasks.length && projectTasks.length > 0 && <div className="project-filter-empty">No tasks match these filters. Clear filters to see the whole project.</div>}
+                  {view === 'board' ? <WorkBoard key={project.id} {...taskViewProps} /> : shownTasks.length ? <WorkList {...taskViewProps} /> : !projectTasks.length && <Empty>No tasks yet. Create your first task to start planning.</Empty>}
+                </section>
+              )}
             </>
           ) : (
             <Panel title="Project unavailable">
@@ -465,7 +321,7 @@ export function Works() {
       )}
       {projectEditor && (
         <Dialog
-          title={projectEditor.id ? 'Edit project' : 'A new project'}
+          title={projectEditor.id ? 'Project settings' : 'Create a project'}
           onClose={() => setProjectEditor(null)}
         >
           <Form
@@ -485,11 +341,12 @@ export function Works() {
                 ),
                 url: workLink(textValue(data, 'url')),
               })
+              await projects.refetch()
               setProjectEditor(null)
-              openProject(saved.id)
+              if (!projectEditor.id) openProject(saved.id)
             }}
           >
-            <Field label="Project / work name">
+            <Field label="Project name">
               <input
                 name="name"
                 required
@@ -547,15 +404,21 @@ export function Works() {
           </Form>
         </Dialog>
       )}
+      {taskPreview && (
+        <Dialog title={taskPreview.title} onClose={() => setTaskPreview(null)}>
+          <div className="stack"><span className={'work-badge ' + taskPreview.status}>{workStatusLabels[taskPreview.status]}</span><p className="work-notes">{taskPreview.notes || 'No notes added.'}</p><p className="muted">{taskPreview.priority} priority · {taskPreview.due_date ? 'Due ' + dayLabel(taskPreview.due_date) : 'No deadline'}</p><p className="muted">This project is archived. Restore it to edit this task.</p></div>
+        </Dialog>
+      )}
       {taskEditor && (
         <Dialog
-          title={taskEditor.id ? 'Edit task' : 'Your next small step'}
+          title={taskEditor.id ? 'Task details' : 'Create task'}
           onClose={() => setTaskEditor(null)}
         >
           <Form
             busy={tasks.busy}
             submit="Save task"
             onSubmit={async (data) => {
+              if (projects.rows.find(item => item.id === taskEditor.project_id)?.status === 'archived') throw new Error('Restore this project before changing tasks.')
               const title = textValue(data, 'title')
               if (!title) throw new Error('Give your task a clear title.')
               const status = textValue(data, 'status') as WorkTaskStatus
@@ -577,10 +440,9 @@ export function Works() {
               })
               setTaskEditor(null)
               setTaskSearch('')
-              if (taskFilter !== 'all' && taskFilter !== 'open')
-                setTaskFilter('all')
-              if (status === 'completed' && taskFilter === 'open')
-                setTaskFilter('completed')
+              setTaskFilter('all')
+              setPriorityFilter('all')
+              setUpdateMessage(taskEditor.id ? 'Task updated.' : 'Task created.')
             }}
           >
             <Field label="Task title">
@@ -599,10 +461,8 @@ export function Works() {
                   name="status"
                   defaultValue={taskEditor.status || 'todo'}
                 >
-                  {Object.entries(workStatusLabels).map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
+                  {workColumns.map(({ status, label }) => (
+                    <option key={status} value={status}>{label}</option>
                   ))}
                 </select>
               </Field>
@@ -646,8 +506,8 @@ export function Works() {
               </Field>
             </details>
             <p className="muted">
-              Incomplete keeps the task visible. You can change its deadline and
-              try again.
+              Needs attention keeps incomplete work visible for another attempt.
+              Marking a task Done records its completion date.
             </p>
           </Form>
         </Dialog>

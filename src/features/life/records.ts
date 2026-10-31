@@ -1,5 +1,6 @@
 import { supabase } from '../../lib/supabase'
 import { canQuerySupabase, getLocalData, setLocalData } from '../../lib/storage'
+import { validateAccount, validateTransaction, validateBudget } from './money'
 import type {
   DailyLog,
   DailyActivity,
@@ -14,12 +15,17 @@ import type {
   WorkoutRoutine,
   WorkProject,
   WorkTask,
+  MoneyAccount,
+  MoneyTransaction,
+  MoneyBudget,
 } from '../../types'
 
 export class SchemaUpdateRequired extends Error {
   constructor(table?: string) {
     super(
-      table === 'work_projects' || table === 'work_tasks'
+      table?.startsWith('money_')
+        ? 'Money setup needed: run supabase/migrations/20261030_money.sql in your Supabase SQL Editor, then click Retry. Existing records are preserved.'
+        : table === 'work_projects' || table === 'work_tasks'
         ? 'Works setup needed: run supabase/migrations/20261028_works.sql in your Supabase SQL Editor, then click Retry. Existing records are preserved.'
         : table === 'job_search_resources'
           ? 'Search toolkit setup needed: run supabase/migrations/20261024_job_search_resources.sql in your Supabase SQL Editor, then click Retry. Your applications are still available.'
@@ -39,6 +45,9 @@ export class SchemaUpdateRequired extends Error {
 }
 
 export interface Records {
+  money_accounts: MoneyAccount
+  money_transactions: MoneyTransaction
+  money_budgets: MoneyBudget
   work_projects: WorkProject
   work_tasks: WorkTask
   daily_activity: DailyActivity
@@ -55,6 +64,9 @@ export interface Records {
 }
 export type Table = keyof Records
 const keys: Record<Table, string> = {
+  money_accounts: 'money_accounts_',
+  money_transactions: 'money_transactions_',
+  money_budgets: 'money_budgets_',
   work_projects: 'work_projects_',
   work_tasks: 'work_tasks_',
   daily_activity: 'activity_',
@@ -92,6 +104,14 @@ export async function saveRecord<K extends Table>(
   userId: string,
   input: Partial<Records[K]> & { id?: string },
 ): Promise<Records[K]> {
+  if (table.startsWith('money_')) {
+    const existing = input.id ? (await listRecords(table, userId)).find(r => r.id === input.id) : undefined
+    if (input.id && !existing) throw new Error('This record no longer exists. Refresh and try again.')
+    input = { ...existing, ...input }
+    if (table === 'money_accounts') validateAccount(input as unknown as MoneyAccount, existing as MoneyAccount | undefined, await listRecords('money_transactions', userId))
+    if (table === 'money_transactions') validateTransaction(input as unknown as MoneyTransaction, await listRecords('money_accounts', userId), existing as MoneyTransaction | undefined)
+    if (table === 'money_budgets') validateBudget(input as unknown as MoneyBudget)
+  }
   const now = new Date().toISOString()
   const row = {
     ...input,
@@ -103,7 +123,9 @@ export async function saveRecord<K extends Table>(
   if (table === 'habit_logs') delete (row as Record<string, unknown>).updated_at
   if (await canQuerySupabase(userId)) {
     const conflict =
-      table === 'daily_logs'
+      table === 'money_budgets'
+        ? 'user_id,month,currency,category'
+        : table === 'daily_logs'
         ? 'user_id,date'
         : table === 'daily_activity'
           ? 'user_id,date,activity_key'
@@ -160,6 +182,10 @@ export async function saveRecord<K extends Table>(
   const i = rows.findIndex(
     (r) =>
       r.id === row.id ||
+      (table === 'money_budgets' &&
+        (r as MoneyBudget).month === (input as unknown as MoneyBudget).month &&
+        (r as MoneyBudget).currency === (input as unknown as MoneyBudget).currency &&
+        (r as MoneyBudget).category === (input as unknown as MoneyBudget).category) ||
       (table === 'daily_activity' &&
         (r as DailyActivity).date === (input as Partial<DailyActivity>).date &&
         (r as DailyActivity).activity_key ===
@@ -199,6 +225,7 @@ export async function saveRecord<K extends Table>(
   return saved
 }
 export async function removeRecord(table: Table, userId: string, id: string) {
+  if (table === 'money_accounts') throw new Error('Archive an account to preserve its transaction history.')
   if (await canQuerySupabase(userId)) {
     const { error } = await supabase
       .from(table)

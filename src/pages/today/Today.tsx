@@ -251,8 +251,8 @@ export function Today() {
               >
                 Plan tomorrow <ArrowRight size={14} />
               </Link>
-              <Link className="text-link" to="/dashboard">
-                See your progress dashboard →
+              <Link className="text-link" to={'/review?date=' + date}>
+                Review your progress →
               </Link>
             </div>
           </div>

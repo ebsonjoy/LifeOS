@@ -15,6 +15,8 @@ import {
   Leaf,
   MoreHorizontal,
   FolderKanban,
+  ChartNoAxesCombined,
+  Wallet,
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useToday } from '../../features/life/ui'
@@ -25,6 +27,8 @@ const links = [
   { to: '/today', label: 'Today', icon: CalendarDays },
   { to: '/plans', label: 'Plans', icon: ListChecks },
   { to: '/habits', label: 'Habits', icon: Leaf },
+  { to: '/review', label: 'Review', icon: ChartNoAxesCombined },
+  { to: '/money', label: 'Money', icon: Wallet },
   { to: '/works', label: 'Works', icon: FolderKanban },
   { to: '/english', label: 'English', icon: BookOpen },
   { to: '/fitness', label: 'Gym & Food', icon: Dumbbell },

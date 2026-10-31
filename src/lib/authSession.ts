@@ -74,6 +74,8 @@ export function safeReturnPath(value: unknown): string {
   return [
     '/today',
     '/dashboard',
+    '/review',
+    '/money',
     '/plans',
     '/works',
     '/habits',

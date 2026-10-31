@@ -29,6 +29,10 @@ import './features/life/compact.css'
 const Dashboard = lazy(() =>
   import('./pages/dashboard/Dashboard').then((m) => ({ default: m.Dashboard })),
 )
+const Review = lazy(() =>
+  import('./pages/review/Review').then((m) => ({ default: m.Review })),
+)
+const Money = lazy(() => import('./pages/money/Money').then(m => ({default:m.Money})))
 const Plans = lazy(() =>
   import('./pages/plans/Plans').then((m) => ({ default: m.Plans })),
 )
@@ -90,6 +94,8 @@ export default function App() {
                         element={<Navigate to="/dashboard" replace />}
                       />
                       <Route path="/dashboard" element={<Dashboard />} />
+                      <Route path="/review" element={<Review />} />
+                      <Route path="/money" element={<Money />} />
                       <Route path="/plans" element={<Plans />} />
                       <Route path="/works" element={<Works />} />
                       <Route path="/habits" element={<Habits />} />

@@ -15,6 +15,21 @@ export type HabitCategory =
 export type HabitFrequency = 'daily' | 'weekly'
 export type ProgressStatus = 'planned' | 'completed' | 'incomplete'
 
+export type MoneyCurrency = 'INR' | 'USD' | 'EUR' | 'GBP'
+export interface MoneyAccount {
+  id: string; user_id: string; name: string; kind: 'cash' | 'bank' | 'wallet'; currency: MoneyCurrency;
+  opening_minor: number; opening_date: string; archived: boolean; created_at: string; updated_at: string
+}
+export interface MoneyTransaction {
+  id: string; user_id: string; account_id: string; to_account_id: string | null;
+  kind: 'income' | 'expense' | 'transfer'; amount_minor: number; date: string;
+  category: string; description: string; created_at: string; updated_at: string
+}
+export interface MoneyBudget {
+  id: string; user_id: string; month: string; currency: MoneyCurrency; category: string;
+  limit_minor: number; created_at: string; updated_at: string
+}
+
 export interface WorkProject {
   id: string
   user_id: string

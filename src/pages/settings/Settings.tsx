@@ -14,6 +14,9 @@ import {
   textValue,
 } from '../../features/life/ui'
 const tables: Table[] = [
+  'money_accounts',
+  'money_transactions',
+  'money_budgets',
   'work_projects',
   'work_tasks',
   'daily_activity',
@@ -211,6 +214,11 @@ export function Settings() {
               <summary>Database update & setup instructions</summary>
               <div className="stack">
                 <p className="muted">
+                  For Money accounts, transactions and budgets, run{' '}
+                  <code>supabase/migrations/20261030_money.sql</code>. It adds
+                  private money records and preserves existing tracking data.
+                </p>
+                <p className="muted">
                   For Works projects and tasks, run{' '}
                   <code>supabase/migrations/20261028_works.sql</code>. It
                   preserves your existing records.
@@ -237,7 +245,7 @@ export function Settings() {
                   Existing habits and daily entries are preserved.
                 </p>
                 <p className="muted">
-                  For the dashboard, time records, and complete/incomplete
+                  For Review, time records, and complete/incomplete
                   reviews, run{' '}
                   <code>supabase/migrations/20261027_dashboard_plans.sql</code>.
                 </p>

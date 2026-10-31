@@ -1,0 +1,99 @@
+.life .money-page { min-width: 0; }
+.life .money-header-actions, .life .money-period-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.life .money-toolbar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px; border: 1px solid var(--card-line); border-radius: 16px; background: var(--surface); padding: 18px 22px; margin-bottom: 24px; }
+.life .money-toolbar > div:first-child strong { display: block; font-size: 16px; font-weight: 600; }
+.life .money-toolbar > div:first-child span { display: block; font-size: 11px; color: var(--muted); margin-top: 5px; }
+.life .money-period-controls label { display: grid; gap: 5px; font-size: 10px; color: var(--muted); }
+.life .money-period-controls :is(input,select) { min-height: 38px; font-size: 12px; }
+.life .money-message { font-size: 12px; color: var(--muted); margin: 12px 0; }
+.life .money-message:empty { display: none; }
+.life .money-onboarding { display: grid; justify-items: center; text-align: center; gap: 18px; padding: 60px 24px; background: var(--surface); border: 1px solid var(--card-line); border-radius: 20px; }
+.life .money-onboarding > svg { color: var(--accent); }
+.life .money-onboarding h2 { font-size: 26px; font-weight: 600; letter-spacing: -0.6px; }
+.life .money-onboarding p { max-width: 470px; font-size: 13px; color: var(--muted); line-height: 1.9; }
+.life .money-onboarding small { font-size: 11px; color: var(--muted); }
+.life .money-metrics { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 24px; margin: 30px 0; }
+.life .money-metrics > div { min-width: 0; padding-right: 20px; border-right: 1px solid var(--line); }
+.life .money-metrics > div:last-child { border: 0; }
+.life .money-metrics span { color: var(--muted); font-size: 11px; }
+.life .money-metrics strong { display: block; font-size: clamp(20px,2vw,29px); font-weight: 600; letter-spacing: -0.7px; margin: 8px 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.life .money-metrics small { font-size: 10px; color: var(--muted); }
+.life .money-tabs { display: flex; gap: 28px; border-bottom: 1px solid var(--line); margin-bottom: 24px; overflow-x: auto; }
+.life .money-tabs button { display: inline-flex; gap: 8px; align-items: center; padding: 14px 0; background: none; color: var(--muted); border: 0; border-bottom: 3px solid transparent; font-size: 13px; white-space: nowrap; }
+.life .money-tabs button[aria-pressed='true'] { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+.life .money-charts { display: grid; grid-template-columns: minmax(0,1.3fr) minmax(0,1fr); gap: 24px; margin-bottom: 24px; align-items: start; }
+.life .money-page .panel, .life .money-section { border: 1px solid var(--card-line); border-radius: 18px; background: var(--surface); padding: 24px; box-shadow: none; min-width: 0; }
+.life .money-page .panel-heading { border: 0; padding-bottom: 0; }
+.life .money-chart { height: 270px; font-size: 11px; }
+.life .money-empty { display: grid; align-content: center; text-align: center; padding: 35px 20px; min-height: 155px; color: var(--muted); font-size: 12px; line-height: 1.8; background: var(--inset); border-radius: 12px; }
+.life .money-category-list { display: grid; gap: 16px; }
+.life .money-category-list > div > div { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px; font-size: 12px; }
+.life .money-category-list strong { font-weight: 550; }
+.life .money-category-list small { font-size: 10px; color: var(--muted); }
+.life .money-page progress { display: block; width: 100%; height: 6px; border-radius: 4px; border: 0; appearance: none; overflow: hidden; background: var(--line); margin: 8px 0 4px; }
+.life .money-page progress::-webkit-progress-bar { background: var(--line); }
+.life .money-page progress::-webkit-progress-value { background: var(--accent); border-radius: 4px; }
+.life .money-page progress::-moz-progress-bar { background: var(--accent); border-radius: 4px; }
+.life .money-page progress.over::-webkit-progress-value { background: var(--danger); }
+.life .money-page progress.over::-moz-progress-bar { background: var(--danger); }
+.life .money-section-heading { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 14px; margin-bottom: 22px; }
+.life .money-section-heading h2 { font-size: 16px; font-weight: 600; }
+.life .money-section-heading p { font-size: 11px; color: var(--muted); margin-top: 5px; }
+.life .money-ledger-heading, .life .money-ledger-row { display: grid; grid-template-columns: minmax(0,2fr) minmax(0,1fr) minmax(110px,1fr) 70px; align-items: center; gap: 18px; }
+.life .money-ledger-heading { padding: 0 0 12px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 10px; }
+.life .money-ledger-heading > span:nth-child(n+3) { text-align: right; }
+.life .money-ledger-row { padding: 18px 0; border-bottom: 1px solid var(--card-line); }
+.life .money-ledger-row:last-child { border-bottom: 0; padding-bottom: 0; }
+.life .money-entry { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.life .money-entry > div { min-width: 0; }
+.life .money-entry-icon { display: grid; place-items: center; width: 34px; height: 34px; flex-shrink: 0; border-radius: 10px; background: var(--inset); color: var(--muted); }
+.life .money-entry-icon.income { background: var(--soft); color: var(--accent); }
+.life .money-entry-icon.expense { color: var(--chart-gold); }
+.life .money-entry strong { display: block; font-size: 12px; font-weight: 550; overflow-wrap: anywhere; white-space: pre-wrap; }
+.life .money-entry small, .life .money-entry-account small { display: block; font-size: 10px; color: var(--muted); margin-top: 5px; }
+.life .money-entry-account { font-size: 11px; overflow-wrap: anywhere; }
+.life .money-entry-amount { font-size: 12px; text-align: right; font-weight: 550; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.life .money-entry-amount.income { color: var(--accent); }
+.life .money-row-actions { display: flex; justify-content: flex-end; gap: 2px; }
+.life .money-row-actions .icon-btn { min-width: 32px; min-height: 34px; }
+.life .money-filters { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 22px; }
+.life .money-search { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 190px; color: var(--muted); }
+.life .money-search input { width: 100%; }
+.life .money-budget-grid, .life .money-account-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 18px; }
+.life .money-budget, .life .money-account { background: var(--inset); border-radius: 14px; padding: 20px; min-width: 0; }
+.life .money-budget > div, .life .money-account > div { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.life .money-budget h3, .life .money-account h3 { font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.life .money-budget > strong { display: block; font-size: 20px; margin: 18px 0; font-weight: 600; overflow-wrap: anywhere; }
+.life .money-budget > strong small { font-size: 11px; color: var(--muted); font-weight: 400; }
+.life .money-budget p { font-size: 11px; color: var(--muted); margin-top: 12px; }
+.life .money-page .negative { color: var(--danger); }
+.life .money-account-kind { display: inline-flex; align-items: center; gap: 8px; text-transform: capitalize; font-size: 11px; color: var(--muted); }
+.life .money-account h3 { margin-top: 16px; }
+.life .money-account > strong { display: block; font-size: 25px; margin: 8px 0; font-weight: 600; overflow-wrap: anywhere; }
+.life .money-account > small { display: block; font-size: 10px; color: var(--muted); }
+.life .money-account > button { margin-top: 18px; }
+.life .money-footnote { font-size: 11px; color: var(--muted); line-height: 1.8; margin-top: 22px; }
+.life .money-notice { font-size: 12px; color: var(--muted); background: var(--soft); border-radius: 10px; padding: 14px; margin-bottom: 20px; }
+.money-type-switch { display: flex; gap: 5px; background: var(--paper); border-radius: 10px; padding: 5px; }
+.money-type-switch button { flex: 1; border: 0; padding: 11px 5px; border-radius: 7px; background: transparent; color: var(--muted); font-size: 12px; text-transform: capitalize; }
+.money-type-switch button[aria-pressed='true'] { background: var(--surface); color: var(--accent); box-shadow: 0 1px 4px #0001; }
+@media(max-width:1100px) {
+  .life .money-charts { grid-template-columns: 1fr; }
+  .life .money-metrics { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .life .money-metrics > div:nth-child(2) { border: 0; }
+}
+@media(max-width:700px) {
+  .life .money-budget-grid, .life .money-account-grid { grid-template-columns: 1fr; }
+  .life .money-page .panel, .life .money-section { padding: 18px; }
+  .life .money-tabs { gap: 20px; }
+  .life .money-tabs button { font-size: 11px; gap: 5px; }
+  .life .money-ledger-heading { display: none; }
+  .life .money-ledger-row { grid-template-columns: minmax(0,1fr) auto; gap: 10px; }
+  .life .money-entry { grid-column: 1 / -1; }
+  .life .money-entry-account { grid-column: 1; }
+  .life .money-entry-amount { grid-column: 2; grid-row: 2; }
+  .life .money-row-actions { grid-column: 2; }
+  .life .money-row-actions .icon-btn { min-height: 40px; min-width: 38px; }
+  .life .money-filters select { flex: 1; min-width: 0; }
+  .life .money-search { flex-basis: 100%; }
+}

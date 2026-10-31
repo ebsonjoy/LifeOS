@@ -1,9 +1,10 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, X, Loader2, AlertCircle } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Loader2, AlertCircle } from 'lucide-react'
 import { dateKey, dayLabel, shiftDay } from './helpers'
 import { RecordsLoading } from '../../components/ui/LoadingState'
+import { Drawer } from '../../components/ui/Drawer'
 
 export function useToday() {
   const [today, setToday] = useState(dateKey)
@@ -114,11 +115,12 @@ export function Panel({
   children: ReactNode
   className?: string
 }) {
+  const titleId = useId()
   return (
-    <section className={'panel ' + className}>
+    <section className={'panel ' + className} aria-labelledby={titleId}>
       <div className="panel-heading">
         <div>
-          <h2>{title}</h2>
+          <h2 id={titleId}>{title}</h2>
           {subtitle && <p>{subtitle}</p>}
         </div>
         {action}
@@ -156,38 +158,8 @@ export function Dialog({
   onClose: () => void
   children: ReactNode
 }) {
-  const ref = useRef<HTMLDialogElement>(null)
-  const titleId = useId()
-  useEffect(() => {
-    const node = ref.current
-    node?.showModal()
-    const prior = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => {
-      node?.close()
-      document.body.style.overflow = prior
-    }
-  }, [])
   return (
-    <dialog
-      ref={ref}
-      className="life-dialog"
-      aria-labelledby={titleId}
-      onCancel={onClose}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose()
-      }}
-    >
-      <div className="dialog-inner">
-        <div className="panel-heading">
-          <h2 id={titleId}>{title}</h2>
-          <button className="icon-btn" aria-label="Close" onClick={onClose}>
-            <X size={20} />
-          </button>
-        </div>
-        {children}
-      </div>
-    </dialog>
+    <Drawer title={title} onClose={onClose}>{children}</Drawer>
   )
 }
 export function Form({

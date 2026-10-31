@@ -124,6 +124,7 @@ html.dark .life .habit-log-one.btn {
   margin: 0;
 }
 .life-sidebar {
+  overflow-y: auto;
   position: sticky;
   top: 0;
   height: 100vh;

@@ -26,9 +26,9 @@ export function ConfirmDialog({
   isLoading = false,
 }: ConfirmDialogProps) {
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={title} maxWidth="sm" position="center">
+    <Modal isOpen={isOpen} onClose={onClose} title={title} maxWidth="sm">
       <div className="flex flex-col gap-4">
-        <div className="flex items-start gap-3 text-sm text-zinc-300">
+        <div className="flex items-start gap-3 text-sm text-[var(--ink)]">
           <div
             className={`p-2 rounded-xl shrink-0 ${
               isDestructive ? 'bg-rose-500/10 text-rose-400' : 'bg-amber-500/10 text-amber-400'
@@ -39,7 +39,7 @@ export function ConfirmDialog({
           <p className="leading-relaxed mt-0.5">{message}</p>
         </div>
 
-        <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-zinc-800/80">
+        <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-[var(--line)]">
           <Button variant="ghost" size="sm" onClick={onClose} disabled={isLoading}>
             {cancelText}
           </Button>

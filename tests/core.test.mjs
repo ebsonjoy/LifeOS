@@ -98,6 +98,10 @@ async function modules(cloud = false, cloudError = null) {
   await habits.evaluate()
   const progress = await load('src/features/life/progress.ts')
   await progress.evaluate()
+  const planner = await load('src/features/life/plans.ts')
+  await planner.evaluate()
+  const money = await load('src/features/life/money.ts')
+  await money.evaluate()
   const works = await load('src/features/life/works.ts')
   await works.evaluate()
   const records = await load('src/features/life/records.ts')
@@ -111,6 +115,8 @@ async function modules(cloud = false, cloudError = null) {
     habits: habits.namespace,
     progress: progress.namespace,
     works: works.namespace,
+    planner: planner.namespace,
+    money: money.namespace,
     workoutNames: workoutNames.namespace,
     jobSearch: jobSearch.namespace,
     storage: storage.namespace,
@@ -762,7 +768,7 @@ test('daily activity upserts by day and activity and remains isolated by account
   await r.saveRecord('daily_activity','user-1',p.defaultActivity('2026-10-28','sleep','Sleep','time'))
   assert.equal((await r.listRecords('daily_activity','user-1')).length,3)
   assert.equal((await r.listRecords('daily_activity','user-2')).length,0)
-  for(const route of ['/dashboard','/plans?date=2026-10-27#timetable','/habits'])assert.equal(auth.safeReturnPath(route),route)
+  for(const route of ['/dashboard','/review?date=2026-10-27','/money','/plans?date=2026-10-27#timetable','/habits'])assert.equal(auth.safeReturnPath(route),route)
 })
 
 
@@ -853,4 +859,246 @@ test('reusing completed and untimed plans preserves schedules and resets only th
   const untimed=p.copyPlanToDate({...original,start_time:'',end_time:'',ends_next_day:false},'2026-11-01')
   assert.equal(untimed.start_time,'')
   assert.equal(untimed.end_time,'')
+})
+
+test('project board filters combine text, priority and status without losing completed work', async () => {
+  const { works: w } = await modules()
+  const tasks = [
+    { id: 'alpha', title: 'Design home page', notes: 'Mobile layout', status: 'todo', priority: 'high', due_date: '2026-10-29', created_at: '1' },
+    { id: 'beta', title: 'Build API', notes: 'Mobile client', status: 'in_progress', priority: 'normal', due_date: '2026-10-30', created_at: '2' },
+    { id: 'gamma', title: 'Release', notes: '', status: 'completed', priority: 'high', due_date: '2026-10-28', created_at: '3' },
+    { id: 'delta', title: 'Review copy', notes: 'Follow up', status: 'incomplete', priority: 'low', due_date: null, created_at: '4' },
+  ]
+  const filter = (changes = {}) => w.filterWorkTasks(tasks, { search: '', status: 'all', priority: 'all', ...changes }, '2026-10-30').map(t => t.id).join(',')
+  assert.equal(filter({ search: ' MOBILE ', priority: 'high' }), 'alpha')
+  assert.equal(filter({ search: 'GAMMA' }), 'gamma')
+  assert.equal(filter({ status: 'overdue' }), 'alpha')
+  assert.equal(filter({ status: 'completed' }), 'gamma')
+  assert.equal(filter({ status: 'incomplete' }), 'delta')
+  assert.equal(filter({ status: 'open', priority: 'high' }), 'alpha')
+  assert.equal(filter({ search: 'not found' }), '')
+  assert.equal(filter().split(',').length, 4)
+  assert.equal(tasks[0].id, 'alpha')
+})
+
+test('project monitor distinguishes an empty plan, overdue work, finished tasks and archived projects', async () => {
+  const { works: w } = await modules()
+  const project = { status: 'active', due_date: null }
+  const task = { status: 'todo', due_date: '2026-10-31' }
+  const health = (p, tasks) => w.projectHealth(p, tasks, '2026-10-30').label
+  assert.equal(health(project, []), 'Ready to plan')
+  assert.equal(health(project, [task]), 'On track')
+  assert.equal(health(project, [{ ...task, due_date: '2026-10-29' }]), 'Needs attention')
+  assert.equal(health(project, [{ ...task, status: 'incomplete' }]), 'Needs attention')
+  assert.equal(health({ ...project, due_date: '2026-10-29' }, []), 'Past deadline')
+  assert.equal(health({ ...project, due_date: '2026-10-29' }, [{ ...task, status: 'completed' }]), 'All tasks done')
+  assert.equal(health({ ...project, status: 'paused' }, [task]), 'Paused')
+  assert.equal(health({ ...project, status: 'archived' }, [{ ...task, status: 'completed' }]), 'Archived')
+})
+
+test('board status moves persist notes and dates and clear completion when reopened', async () => {
+  const { records: r, works: w } = await modules()
+  const project = await r.saveRecord('work_projects', 'user-1', { name: 'Board project', status: 'active', description: '' })
+  let task = await r.saveRecord('work_tasks', 'user-1', { project_id: project.id, title: 'Deliver feature', notes: 'Keep these details', status: 'todo', priority: 'high', due_date: '2026-11-02', completed_on: null })
+  for (const status of ['in_progress', 'incomplete', 'completed', 'todo']) {
+    task = await r.saveRecord('work_tasks', 'user-1', w.workTaskOutcome(task, status, '2026-10-30'))
+    const saved = (await r.listRecords('work_tasks', 'user-1'))[0]
+    assert.equal(saved.status, status)
+    assert.equal(saved.completed_on, status === 'completed' ? '2026-10-30' : null)
+    assert.equal(saved.notes, 'Keep these details')
+    assert.equal(saved.priority, 'high')
+    assert.equal(saved.due_date, '2026-11-02')
+    assert.equal(saved.project_id, project.id)
+  }
+  assert.equal((await r.listRecords('work_tasks', 'user-2')).length, 0)
+})
+
+test('planner counts occupied time once and finds usable gaps between overlapping blocks', async () => {
+  const { planner: p } = await modules()
+  const date = '2026-10-30'
+  const base = {date,title:'Task',category:'personal',status:'planned',completed:false,actual_minutes:null}
+  const rows = [
+    {...base,id:'a',start_time:'09:00',end_time:'11:00'},
+    {...base,id:'b',start_time:'10:00',end_time:'12:00',actual_minutes:45},
+    {...base,id:'c',start_time:'12:00',end_time:'13:00',status:'completed',completed:true,actual_minutes:0},
+    {...base,id:'d',start_time:'',end_time:''},
+    {...base,id:'e',start_time:'14:00',end_time:''},
+  ]
+  assert.equal([...p.planConflicts(rows,date)].sort().join(','),'a,b')
+  assert.equal(p.plannerSummary(rows,date).scheduled,240)
+  assert.equal(p.plannerSummary(rows,date).actual,45)
+  assert.equal(p.plannerSummary(rows,date).untimed,1)
+  assert.equal(p.plannerSummary(rows,date).complete,1)
+  assert.equal(p.plannerSummary(rows,date).open,4)
+  assert.equal(p.availableGaps(rows,date).map(g => `${g.start}-${g.end}`).join(','),'480-540,780-1320')
+  assert.equal(p.plannerSummary([],date).actual,null)
+})
+
+test('planner clips overnight tasks and detects conflicts with previous-day carryover', async () => {
+  const { planner:p } = await modules()
+  const rows = [
+    {id:'night',date:'2026-10-29',start_time:'23:00',end_time:'02:00',ends_next_day:true},
+    {id:'early',date:'2026-10-30',start_time:'01:00',end_time:'03:00'},
+    {id:'late',date:'2026-10-30',start_time:'23:30',end_time:'00:30',ends_next_day:true},
+  ]
+  assert.equal(p.plannerSummary(rows,'2026-10-29').scheduled,60)
+  assert.equal(p.plannerSummary(rows,'2026-10-30').scheduled,210)
+  assert.equal(p.plannerSummary(rows,'2026-10-31').scheduled,30)
+  assert.equal([...p.planConflicts(rows,'2026-10-30')].sort().join(','),'early,night')
+  assert.equal(p.dayIntervals(rows,'2026-10-30').filter(i=>i.carryover).length,1)
+  assert.equal(p.schedulePreset('23:30',60).end_time,'00:30')
+  assert.equal(p.schedulePreset('23:30',60).ends_next_day,true)
+  assert.equal(p.schedulePreset('23:00',60).ends_next_day,true)
+  assert.equal(p.schedulePreset('09:00',30).ends_next_day,false)
+  assert.throws(()=>p.schedulePreset('',30))
+})
+
+test('planner validates rescheduling while protecting past outcomes and actual time', async () => {
+  const {planner:p} = await modules()
+  const original = {id:'a',date:'2026-10-30',status:'planned',actual_minutes:null}
+  const next = {date:'2026-10-31',start_time:'09:00',end_time:'10:00',ends_next_day:false,status:'planned',actual_minutes:null}
+  assert.doesNotThrow(()=>p.validatePlanEdit(original,next,'2026-10-30'))
+  assert.throws(()=>p.validatePlanEdit({...original,status:'completed'},next,'2026-10-30'),/history/)
+  assert.throws(()=>p.validatePlanEdit({...original,actual_minutes:0},next,'2026-10-30'),/history/)
+  assert.throws(()=>p.validatePlanEdit({}, {...next,status:'completed'},'2026-10-30'),/Future/)
+  assert.throws(()=>p.validatePlanEdit({}, {...next,actual_minutes:0},'2026-10-30'),/Future/)
+  assert.throws(()=>p.validatePlanEdit({}, {...next,date:'2026-02-30'},'2026-10-30'),/valid date/)
+  assert.throws(()=>p.validatePlanEdit({}, {...next,start_time:'',end_time:'' ,ends_next_day:true},'2026-10-30'),/overnight/)
+  assert.throws(()=>p.validatePlanEdit({}, {...next,start_time:'10:00',end_time:'09:00'},'2026-10-30'),/end must follow/)
+  assert.doesNotThrow(()=>p.validatePlanEdit({...original,status:'completed'}, {...next,date:original.date,status:'completed',actual_minutes:60},'2026-10-30'))
+})
+
+test('planner prevents rescheduling copied tasks over existing attempts', async () => {
+  const {planner:p} = await modules()
+  const original = {id:'copy-a',source_plan_id:'source',date:'2026-10-30',status:'planned',actual_minutes:null}
+  const next = {date:'2026-10-31',start_time:'09:00',end_time:'10:00',ends_next_day:false,status:'planned',actual_minutes:null}
+  const existing = {...original,id:'copy-b',date:next.date,status:'completed',actual_minutes:60}
+  assert.throws(()=>p.validatePlanEdit(original,next,'2026-10-30',[original,existing]),/already has an attempt/)
+  assert.doesNotThrow(()=>p.validatePlanEdit(original,next,'2026-10-30',[original,{...existing,source_plan_id:'other'}]))
+  assert.doesNotThrow(()=>p.validatePlanEdit(original,{...next,date:original.date},'2026-10-30',[original,existing]))
+})
+
+test('planner reschedules a pending task without duplicating it or changing other records', async () => {
+  const {records:r,planner:p} = await modules()
+  const original = await r.saveRecord('daily_plans','user-1',{date:'2026-10-30',title:'Prepare a talk',category:'work',start_time:'',end_time:'',ends_next_day:false,status:'planned',completed:false,actual_minutes:null,summary:'Keep notes'})
+  const next = {...original,date:'2026-10-31',start_time:'11:00',end_time:'12:00'}
+  p.validatePlanEdit(original,next,'2026-10-30')
+  await r.saveRecord('daily_plans','user-1',next)
+  const rows = await r.listRecords('daily_plans','user-1')
+  assert.equal(rows.length,1)
+  assert.equal(rows[0].id,original.id)
+  assert.equal(rows[0].date,'2026-10-31')
+  assert.equal(rows[0].summary,'Keep notes')
+  assert.equal((await r.listRecords('daily_plans','user-2')).length,0)
+})
+
+
+test('money parses exact minor units and rejects fractional cents, invalid and unsafe amounts', async () => {
+  const {money:m} = await modules()
+  assert.equal(m.parseMoney('0.29'),29)
+  assert.equal(m.parseMoney('100.01'),10001)
+  assert.equal(m.parseMoney('-25.50',true),-2550)
+  for(const value of ['','1.001','1e3','1,000','NaN','-1','10000000001']) assert.throws(()=>m.parseMoney(value))
+  assert.equal(m.formatMoney(123456,'INR'),'₹1,234.56')
+})
+
+test('money transfers are atomic records, preserve total balances and never inflate cash flow', async () => {
+  const {records:r,money:m} = await modules()
+  const cash = await r.saveRecord('money_accounts','user-1',{name:'Cash',kind:'cash',currency:'INR',opening_minor:10000,opening_date:'2026-01-01',archived:false})
+  const bank = await r.saveRecord('money_accounts','user-1',{name:'Bank',kind:'bank',currency:'INR',opening_minor:20000,opening_date:'2026-01-01',archived:false})
+  const transfer = await r.saveRecord('money_transactions','user-1',{account_id:bank.id,to_account_id:cash.id,kind:'transfer',amount_minor:5000,date:'2026-01-02',category:'',description:'ATM'})
+  let rows = await r.listRecords('money_transactions','user-1')
+  assert.equal(rows.length,1)
+  assert.equal(m.accountBalance(cash,rows,'2026-01-31'),15000)
+  assert.equal(m.accountBalance(bank,rows,'2026-01-31'),15000)
+  let report=m.moneyReport([cash,bank],rows,'INR','2026-01','2026-01-31')
+  assert.equal(report.income,0);assert.equal(report.expense,0);assert.equal(report.balance,30000)
+  await r.saveRecord('money_transactions','user-1',{...transfer,amount_minor:2000})
+  rows=await r.listRecords('money_transactions','user-1')
+  assert.equal(m.accountBalance(cash,rows,'2026-01-31'),12000)
+  await r.removeRecord('money_transactions','user-1',transfer.id)
+  rows=await r.listRecords('money_transactions','user-1')
+  assert.equal(m.accountBalance(cash,rows,'2026-01-31'),10000)
+})
+
+test('money rejects cross-owner, cross-currency, same-account, future and pre-opening transactions', async () => {
+  const {records:r,money:m} = await modules()
+  const a=await r.saveRecord('money_accounts','user-1',{name:'INR',kind:'cash',currency:'INR',opening_minor:0,opening_date:'2026-01-02',archived:false})
+  const b=await r.saveRecord('money_accounts','user-1',{name:'USD',kind:'bank',currency:'USD',opening_minor:0,opening_date:'2026-01-02',archived:false})
+  const tx={account_id:a.id,to_account_id:null,kind:'expense',amount_minor:100,date:'2026-01-03',category:'Food & groceries',description:''}
+  await assert.rejects(r.saveRecord('money_transactions','user-2',tx),/workspace/)
+  await assert.rejects(r.saveRecord('money_transactions','user-1',{...tx,kind:'transfer',category:'',to_account_id:b.id}),/same currency/)
+  await assert.rejects(r.saveRecord('money_transactions','user-1',{...tx,kind:'transfer',category:'',to_account_id:a.id}),/different/)
+  assert.throws(()=>m.validateTransaction({...tx,date:'2026-01-01'},[a,b],undefined,'2026-01-04'),/opening/)
+  assert.throws(()=>m.validateTransaction({...tx,date:'2026-01-05'},[a,b],undefined,'2026-01-04'),/before today/)
+  assert.throws(()=>m.validateTransaction({...tx,amount_minor:0},[a,b],undefined,'2026-01-04'),/positive/)
+  assert.throws(()=>m.validateTransaction({...tx,category:'Salary'},[a,b],undefined,'2026-01-04'),/category/)
+  assert.equal((await r.listRecords('money_transactions','user-1')).length,0)
+})
+
+test('money history locks opening balances and archive preserves totals while stopping new entries', async () => {
+  const {records:r,money:m} = await modules()
+  const a=await r.saveRecord('money_accounts','user-1',{name:'Cash',kind:'cash',currency:'INR',opening_minor:10000,opening_date:'2026-01-01',archived:false})
+  const tx=await r.saveRecord('money_transactions','user-1',{account_id:a.id,to_account_id:null,kind:'expense',amount_minor:1000,date:'2026-01-02',category:'Transport',description:''})
+  await assert.rejects(r.saveRecord('money_accounts','user-1',{...a,opening_minor:0}),/locked/)
+  await assert.rejects(r.saveRecord('money_accounts','user-1',{...a,currency:'USD'}),/locked/)
+  const archived=await r.saveRecord('money_accounts','user-1',{...a,archived:true})
+  await assert.rejects(r.saveRecord('money_transactions','user-1',{...tx,id:undefined}),/Restore/)
+  await r.saveRecord('money_transactions','user-1',{...tx,amount_minor:2000})
+  assert.equal(m.moneyReport([archived],await r.listRecords('money_transactions','user-1'),'INR','2026-01','2026-01-31').balance,8000)
+  await assert.rejects(r.removeRecord('money_accounts','user-1',a.id),/Archive/)
+})
+
+test('money month reports separate currencies, preserve cents and distinguish future days', async () => {
+  const {money:m} = await modules()
+  const accounts=[{id:'a',currency:'INR',opening_minor:100,opening_date:'2026-01-01'},{id:'b',currency:'USD',opening_minor:10000,opening_date:'2026-01-01'}]
+  const rows=[{id:'1',account_id:'a',kind:'income',amount_minor:1000,date:'2026-01-02',category:'Salary'},{id:'2',account_id:'a',kind:'expense',amount_minor:29,date:'2026-01-02',category:'Transport'},{id:'3',account_id:'b',kind:'expense',amount_minor:5000,date:'2026-01-02',category:'Transport'},{id:'4',account_id:'a',kind:'expense',amount_minor:50,date:'2025-12-31',category:'Transport'}]
+  const report=m.moneyReport(accounts,rows,'INR','2026-01','2026-01-03')
+  assert.equal(report.income,1000);assert.equal(report.expense,29);assert.equal(report.net,971)
+  assert.equal(report.categories.length,1);assert.equal(report.categories[0].amount,29)
+  assert.equal(report.daily[1].expense,0.29);assert.equal(report.daily[2].expense,0);assert.equal(report.daily[3].expense,null)
+  assert.equal(m.moneyReport(accounts,[], 'INR','2024-02','2024-02-29').daily.length,29)
+})
+
+test('money budget upserts are month, currency and category scoped and account isolated', async () => {
+  const {records:r} = await modules()
+  const budget={month:'2026-01-01',currency:'INR',category:'Transport',limit_minor:10000}
+  const first=await r.saveRecord('money_budgets','user-1',budget)
+  const updated=await r.saveRecord('money_budgets','user-1',{...budget,limit_minor:20000})
+  assert.equal(first.id,updated.id)
+  await r.saveRecord('money_budgets','user-1',{...budget,month:'2026-02-01'})
+  await r.saveRecord('money_budgets','user-1',{...budget,currency:'USD'})
+  assert.equal((await r.listRecords('money_budgets','user-1')).length,3)
+  assert.equal((await r.listRecords('money_budgets','user-2')).length,0)
+  await assert.rejects(r.saveRecord('money_budgets','user-1',{...budget,limit_minor:-1}),/positive/)
+  await assert.rejects(r.saveRecord('money_budgets','user-1',{...budget,month:'2026-02-30'}),/valid month/)
+})
+
+test('money CSV quotes descriptions and neutralises spreadsheet formulas', async () => {
+  const {money:m} = await modules()
+  const csv=m.moneyCsv([{date:'2026-01-02',kind:'expense',account_id:'a',amount_minor:29,category:'Transport',description:'=SUM(1,2) "x"'}],[{id:'a',name:'Cash',currency:'INR'}])
+  assert.ok(csv.includes('"0.29"'))
+  assert.ok(csv.includes(`"'=SUM(1,2) ""x"""`))
+})
+
+test('missing money schema explains the additive migration without falling back to local data', async () => {
+  const {records:r} = await modules(true,{code:'PGRST205',message:'missing'})
+  await assert.rejects(r.listRecords('money_accounts','user-1'),/20261030_money.sql/)
+})
+
+
+test('failed cloud money saves do not create local entries or partial transfers', async () => {
+  const {records:r,client,items} = await modules(true)
+  const accounts=[{id:'a',user_id:'user-1',name:'Cash',currency:'INR',opening_date:'2026-01-01',opening_minor:0,archived:false},{id:'b',user_id:'user-1',name:'Bank',currency:'INR',opening_date:'2026-01-01',opening_minor:0,archived:false}]
+  let writes=0
+  client.from=(table)=>{
+    let writing=false
+    const builder={then:resolve=>resolve(writing ? {data:null,error:{code:'XX000',message:'Save unavailable'}} : {data:table==='money_accounts'?accounts:[],error:null})}
+    for(const method of ['select','eq','single']) builder[method]=()=>builder
+    builder.upsert=()=>{writing=true;writes++;return builder}
+    return builder
+  }
+  await assert.rejects(r.saveRecord('money_transactions','user-1',{account_id:'a',to_account_id:'b',kind:'transfer',amount_minor:500,date:'2026-01-02',category:'',description:''}),/Save unavailable/)
+  assert.equal(writes,1)
+  assert.equal(items.size,0)
 })

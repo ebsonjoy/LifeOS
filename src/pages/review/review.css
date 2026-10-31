@@ -1,0 +1,76 @@
+.life .review-page { --review-complete: var(--accent); --review-incomplete: var(--chart-gold); --review-pending: var(--chart-neutral); }
+.life .review-page .dashboard-toolbar { margin-bottom: 26px; }
+.life .review-page .dashboard-summary { grid-template-columns: repeat(5,minmax(0,1fr)); }
+.life .review-page .dashboard-summary > a:last-of-type { border-right: 1px solid var(--line); }
+.life .review-work-metric { min-width: 0; }
+.life .review-page .dashboard-summary .review-work-metric a { padding: 0 0 0 24px; display: flex; flex-direction: column; gap: 6px; border: 0; }
+.life .review-page .dashboard-summary strong { font-size: clamp(20px,2vw,28px); }
+.life .review-overview { grid-template-columns: minmax(0,1fr) minmax(0,1.1fr); align-items: start; }
+.life .review-legend { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin: 0 0 18px; font-size: 10px; color: var(--muted); }
+.life .review-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.life .review-legend i { width: 7px; height: 7px; border-radius: 50%; }
+.life .review-page .complete { background: var(--review-complete); }
+.life .review-page .incomplete { background: var(--review-incomplete); }
+.life .review-page .pending { background: var(--review-pending); }
+.life .review-area-list { display: grid; gap: 18px; }
+.life .review-area-row { display: block; border-radius: 6px; }
+.life .review-area-label { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.life .review-area-label strong { font-size: 12px; font-weight: 550; }
+.life .review-area-label > span { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.life .review-area-row:hover strong { color: var(--accent); }
+.life .review-stacked-bar { display: flex; width: 100%; height: 7px; border-radius: 5px; overflow: hidden; background: var(--inset); }
+.life .review-stacked-bar span { display: block; height: 100%; }
+.life .review-area-row > small { display: block; color: var(--muted); font-size: 10px; margin-top: 6px; }
+.life .review-footnote { font-size: 11px; line-height: 1.8; color: var(--muted); margin-top: 22px; }
+.life .review-page .chart-box { height: 275px; }
+.life .review-page .chart-box .recharts-legend-item { margin-right: 14px !important; }
+.life .review-page .chart-box .recharts-cartesian-axis-tick-value { font-variant-numeric: tabular-nums; }
+.review-tooltip { min-width: 175px; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); box-shadow: 0 8px 28px #0002; font-size: 12px; }
+.review-tooltip > strong { display: block; font-size: 11px; color: var(--muted); font-weight: 500; margin-bottom: 10px; }
+.review-tooltip > div { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 4px 0; }
+.review-tooltip span { display: inline-flex; align-items: center; gap: 7px; }
+.review-tooltip i { display: inline-block; width: 7px; height: 7px; border-radius: 50%; }
+.review-tooltip b { font-weight: 600; font-variant-numeric: tabular-nums; }
+.life .review-time-totals { display: grid; margin-top: 24px; border-top: 1px solid var(--card-line); }
+.life .review-time-totals > div { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--card-line); }
+.life .review-time-totals span { font-size: 12px; }
+.life .review-time-totals small { display: block; font-size: 10px; color: var(--muted); margin-top: 4px; }
+.life .review-time-totals strong { font-size: 16px; font-weight: 600; }
+.life .review-disclosure { border: 1px solid var(--card-line); border-radius: 16px; background: var(--surface); overflow: hidden; }
+.life .review-disclosure > summary { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 21px 24px; list-style: none; cursor: pointer; }
+.life .review-disclosure > summary::-webkit-details-marker { display: none; }
+.life .review-disclosure > summary strong { display: block; font-size: 14px; font-weight: 550; }
+.life .review-disclosure > summary small { display: block; font-size: 11px; color: var(--muted); margin-top: 4px; }
+.life .review-disclosure > summary svg { color: var(--muted); flex-shrink: 0; }
+.life .review-disclosure[open] > summary { border-bottom: 1px solid var(--card-line); }
+.life .review-disclosure[open] > summary svg { transform: rotate(180deg); }
+.life .review-detail-body { padding: 24px; }
+.life .review-detail-body .panel { border: 0; border-radius: 0; padding: 0; }
+.life .review-page .review-detail-body .chart-box { height: 290px; }
+.life .review-work-details { margin-top: 24px; }
+.life .review-money-totals { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 20px; }
+.life .review-money-totals span { font-size: 11px; color: var(--muted); }
+.life .review-money-totals strong { display: block; margin-top: 8px; font-size: 23px; font-weight: 600; overflow-wrap: anywhere; }
+.life .review-detail-body .equal-col { gap: 32px; }
+.life .review-page .outcome-summary { grid-template-columns: repeat(4,minmax(0,1fr)); }
+.life .review-page .outcome-summary > span:last-child { grid-column: auto; display: block; border: 0; padding: 0; }
+@media (max-width: 1200px) {
+  .life .review-page .dashboard-summary { grid-template-columns: repeat(3,minmax(0,1fr)); gap: 24px 0; }
+  .life .review-page .dashboard-summary > a:nth-child(3) { border-right: 0; }
+  .life .review-page .dashboard-summary > a:nth-child(4) { padding-left: 0; }
+}
+@media (max-width: 1050px) {
+  .life .review-overview { grid-template-columns: minmax(0,1fr); }
+}
+@media (max-width: 800px) {
+  .life .review-money-totals { grid-template-columns: 1fr; }
+  .life .review-page .dashboard-summary { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .life .review-page .dashboard-summary > a:nth-child(odd) { padding-left: 0; border-right: 1px solid var(--line); }
+  .life .review-page .dashboard-summary > a:nth-child(even) { padding-left: 24px; border-right: 0; }
+  .life .review-page .dashboard-summary .review-work-metric a { padding: 0; }
+  .life .review-page .outcome-summary { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .life .review-detail-body, .life .review-disclosure > summary { padding: 20px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .life .review-page .recharts-layer { transition: none !important; }
+}
