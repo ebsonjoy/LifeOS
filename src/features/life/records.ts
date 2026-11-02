@@ -1,6 +1,7 @@
 import { supabase } from '../../lib/supabase'
 import { canQuerySupabase, getLocalData, setLocalData } from '../../lib/storage'
 import { validateAccount, validateTransaction, validateBudget } from './money'
+import { validateTemplate, validatePlanBatch } from './planLibrary'
 import type {
   DailyLog,
   DailyActivity,
@@ -18,12 +19,15 @@ import type {
   MoneyAccount,
   MoneyTransaction,
   MoneyBudget,
+  PlanTemplate,
 } from '../../types'
 
 export class SchemaUpdateRequired extends Error {
   constructor(table?: string) {
     super(
-      table?.startsWith('money_')
+      table === 'plan_templates'
+        ? 'Task library setup needed: run supabase/migrations/20261031_plan_templates.sql in your Supabase SQL Editor, then click Retry. Your daily plans are unchanged.'
+        : table?.startsWith('money_')
         ? 'Money setup needed: run supabase/migrations/20261030_money.sql in your Supabase SQL Editor, then click Retry. Existing records are preserved.'
         : table === 'work_projects' || table === 'work_tasks'
         ? 'Works setup needed: run supabase/migrations/20261028_works.sql in your Supabase SQL Editor, then click Retry. Existing records are preserved.'
@@ -45,6 +49,7 @@ export class SchemaUpdateRequired extends Error {
 }
 
 export interface Records {
+  plan_templates: PlanTemplate
   money_accounts: MoneyAccount
   money_transactions: MoneyTransaction
   money_budgets: MoneyBudget
@@ -64,6 +69,7 @@ export interface Records {
 }
 export type Table = keyof Records
 const keys: Record<Table, string> = {
+  plan_templates: 'plan_templates_',
   money_accounts: 'money_accounts_',
   money_transactions: 'money_transactions_',
   money_budgets: 'money_budgets_',
@@ -104,6 +110,7 @@ export async function saveRecord<K extends Table>(
   userId: string,
   input: Partial<Records[K]> & { id?: string },
 ): Promise<Records[K]> {
+  if (table === 'plan_templates') validateTemplate(input as Partial<PlanTemplate>)
   if (table.startsWith('money_')) {
     const existing = input.id ? (await listRecords(table, userId)).find(r => r.id === input.id) : undefined
     if (input.id && !existing) throw new Error('This record no longer exists. Refresh and try again.')
@@ -223,6 +230,28 @@ export async function saveRecord<K extends Table>(
   else rows.push(saved)
   setLocalData(keys[table] + userId, rows)
   return saved
+}
+/** One atomic insert per day builder; stable IDs make retries non-destructive. */
+export async function addPlanBatch(userId: string, input: Partial<PlannedTask>[]): Promise<void> {
+  validatePlanBatch(input)
+  const now = new Date().toISOString()
+  const rows = input.map(row => ({
+    id:row.id!, user_id:userId, date:row.date!, title:row.title!.trim(), category:row.category!,
+    start_time:row.start_time || '', end_time:row.end_time || '', ends_next_day:!!row.ends_next_day,
+    summary:row.summary || '', status:'planned' as const, completed:false, actual_minutes:null,
+    source_plan_id:null, created_at:now, updated_at:now,
+  }))
+  if (await canQuerySupabase(userId)) {
+    const {error} = await supabase.from('daily_plans').upsert(rows,{onConflict:'id',ignoreDuplicates:true})
+    if (error) {
+      if (['42P01','PGRST205','42703','PGRST204'].includes(error.code)) throw new SchemaUpdateRequired('daily_plans')
+      throw new Error(error.message)
+    }
+    return
+  }
+  const existing = await listRecords('daily_plans',userId)
+  const ids = new Set(existing.map(row=>row.id))
+  setLocalData(keys.daily_plans+userId,[...existing,...rows.filter(row=>!ids.has(row.id))])
 }
 export async function removeRecord(table: Table, userId: string, id: string) {
   if (table === 'money_accounts') throw new Error('Archive an account to preserve its transaction history.')

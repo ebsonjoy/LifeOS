@@ -4,13 +4,14 @@ import { ArrowRight, Pencil, Trash2 } from 'lucide-react'
 import type { PlannedTask } from '../../types'
 import { useRecords } from './data'
 import { Dialog, Field, Form, ignoreHandled, textValue } from './ui'
-import { shiftDay } from './helpers'
+import { shiftDay, timeLabel } from './helpers'
 import {
   copyPlanToDate,
   durationLabel,
   planOutcome,
   planStatus,
 } from './progress'
+import { PlanInstructions } from './PlanInstructions'
 import { OutcomeButtons } from './OutcomeButtons'
 
 export function PlanItems({
@@ -47,15 +48,15 @@ export function PlanItems({
                         : 'Incomplete'}
                   </span>
                   <h3>{task.title}</h3>
-                  <p>
-                    {task.start_time
-                      ? `${task.start_time}${task.end_time ? ' – ' + task.end_time : ''}${task.ends_next_day ? ' (next day)' : ''}`
-                      : 'No fixed time'}
+                  <p className="plan-item-time">
+                    <span>Time · </span>{task.start_time
+                      ? `${timeLabel(task.start_time)}${task.end_time ? ' – ' + timeLabel(task.end_time) : ''}${task.ends_next_day ? ' (next day)' : ''}`
+                      : 'Any time'}
                     {task.actual_minutes != null
                       ? ' · Actual ' + durationLabel(task.actual_minutes)
                       : ''}
                   </p>
-                  {task.summary && <p>{task.summary}</p>}
+                  <PlanInstructions text={task.summary}/>
                   {task.source_plan_id && (
                     <small>A new attempt copied from an earlier plan.</small>
                   )}

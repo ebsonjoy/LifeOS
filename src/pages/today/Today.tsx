@@ -16,6 +16,7 @@ import {
   sectionAreas,
   timeAreas,
 } from '../../features/life/progress'
+import { sortPlans } from '../../features/life/plans'
 import { PlanItems } from '../../features/life/PlanItems'
 import { habitCount } from '../../features/life/habits'
 import { WorkToday } from '../../features/life/WorkToday'
@@ -31,9 +32,7 @@ export function Today() {
     jobs = useRecords('job_applications'),
     daily = useRecords('daily_logs'),
     routines = useRecords('workout_routines')
-  const selected = plans.rows
-    .filter((r) => r.date === date)
-    .sort((a, b) => a.start_time.localeCompare(b.start_time))
+  const selected = sortPlans(plans.rows.filter((r) => r.date === date))
   const dueJobs = jobs.rows.filter(
     (r) =>
       !['rejected', 'withdrawn'].includes(r.status) &&
@@ -82,7 +81,8 @@ export function Today() {
           <div className="two-col today-layout">
             <div className="stack">
               <Panel
-                title="What needs doing"
+                title={date === today ? "Today’s plan" : "Day plan"}
+                subtitle="Your time, activity, and what to do."
                 action={
                   <Link className="text-link" to={'/plans?date=' + date}>
                     Open plans <ArrowRight size={14} />

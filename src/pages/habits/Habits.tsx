@@ -7,7 +7,7 @@ export function Habits() {
       <PageIntro
         eyebrow="SMALL STEPS, HONEST PROGRESS"
         title="Habits"
-        description="Record your counts and review the day as complete or incomplete."
+        description="Build your routine. Record a little progress, every day."
       >
         <DayPicker date={date} today={today} onChange={setDate} />
       </PageIntro>

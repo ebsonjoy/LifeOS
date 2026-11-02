@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, CalendarDays, ListChecks, Clock3, Copy, Search, ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Plus, CalendarDays, ListChecks, Clock3, Copy, Search, ArrowRight, ChevronLeft, ChevronRight, Library, CalendarPlus } from 'lucide-react'
 import type { PlannedTask, ProgressStatus } from '../../types'
 import { useRecords } from '../../features/life/data'
 import { DataNotice, DayPicker, Dialog, Empty, Field, Form, PageIntro, dayLabel, textValue, useDay } from '../../features/life/ui'
@@ -13,6 +13,9 @@ import { PreviousPlans } from '../../features/life/PreviousPlans'
 import { PlannerTask } from './PlannerTask'
 import { PlanEditor } from './PlanEditor'
 import { PlanNotes } from './PlanNotes'
+import { TaskLibrary } from './TaskLibrary'
+import { DayBuilder } from './DayBuilder'
+import './library.css'
 import './plans.css'
 
 export function Plans() {
@@ -25,7 +28,8 @@ function PlansContent({ date, today, setDate }: { date: string; today: string; s
   const [copy, setCopy] = useState<PlannedTask | null>(null)
   const [deleting, setDeleting] = useState<PlannedTask | null>(null)
   const [reuse, setReuse] = useState(false)
-  const [view, setView] = useState<'schedule' | 'list' | 'time'>('schedule')
+  const [builder, setBuilder] = useState(false)
+  const [view, setView] = useState<'schedule' | 'list' | 'time' | 'library'>('schedule')
   const [quickTitle, setQuickTitle] = useState('')
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('all')
@@ -46,7 +50,7 @@ function PlansContent({ date, today, setDate }: { date: string; today: string; s
   const filtered = selected.filter(task =>
     (filter === 'all' || (filter === 'untimed' ? clockMinutes(task.start_time) == null : planStatus(task) === filter)) &&
     `${task.title} ${task.summary || ''} ${task.category}`.toLowerCase().includes(search.trim().toLowerCase()))
-  const add = (start = '', end = '') => setEditor({date, category:'personal', start_time:start, end_time:end, status:'planned', completed:false})
+  const add = (start = '', end = '') => {setEditor({date, category:'personal', start_time:start, end_time:end, status:'planned', completed:false})}
   async function changeStatus(task: PlannedTask, status: ProgressStatus) {
     if (unavailable || lock.current || task.date > today) return
     lock.current = true
@@ -56,7 +60,7 @@ function PlansContent({ date, today, setDate }: { date: string; today: string; s
     finally { lock.current = false; setSaving(false) }
   }
   const actions = {
-    onEdit: (task: PlannedTask) => setEditor(task),
+    onEdit: (task: PlannedTask) => {setEditor(task)},
     onCopy: (task: PlannedTask) => {setCopy(task);setCopiedDate('')},
     onDelete: (task: PlannedTask) => setDeleting(task),
     onStatus: (task: PlannedTask, status: ProgressStatus) => {void changeStatus(task,status)},
@@ -64,7 +68,7 @@ function PlansContent({ date, today, setDate }: { date: string; today: string; s
   const renderTask = (task: PlannedTask, conflict = false, now = false) => <PlannerTask key={task.id} task={task} today={today} busy={unavailable} conflict={conflict} now={now} actions={actions} />
   return <>
     <PageIntro eyebrow="A LITTLE STRUCTURE. MORE ROOM TO FOCUS." title="Plans" description="Shape your day, keep tasks in one place, and make room for what matters.">
-      <button className="btn" disabled={unavailable} onClick={() => add()}><Plus size={16} />New plan</button>
+      <div className="planner-library-actions"><button className="btn secondary" disabled={unavailable} onClick={()=>setBuilder(true)}><CalendarPlus size={16}/>Build day</button><button className="btn" disabled={unavailable} onClick={() => add()}><Plus size={16} />New plan</button></div>
     </PageIntro>
     <div className="planner-date-bar"><DayPicker date={date} today={today} onChange={setDate} /><button className="btn secondary" disabled={unavailable} onClick={() => setReuse(true)}><Copy size={14} />Reuse plans</button></div>
     <nav className="planner-week" aria-label="Choose a day">
@@ -80,9 +84,9 @@ function PlansContent({ date, today, setDate }: { date: string; today: string; s
         <div><span>Actual task time</span><strong>{durationLabel(summary.actual)}</strong><small>From your recorded task minutes</small></div>
         <div><span>Still to do</span><strong>{summary.open}</strong><small>{summary.untimed} without a fixed time</small></div>
       </div>
-      <div className="planner-view-bar"><nav aria-label="Planner views">{([{key:'schedule',label:'Schedule',Icon:CalendarDays},{key:'list',label:'All tasks',Icon:ListChecks},{key:'time',label:'Time & notes',Icon:Clock3}] as const).map(({key,label,Icon}) => <button key={key} aria-pressed={view === key} className={view === key ? 'selected' : ''} onClick={() => setView(key)}><Icon size={16} />{label}</button>)}</nav><span>{dayLabel(date)}</span></div>
+      <div className="planner-view-bar"><nav aria-label="Planner views">{([{key:'schedule',label:'Schedule',Icon:CalendarDays},{key:'list',label:'All tasks',Icon:ListChecks},{key:'library',label:'Task library',Icon:Library},{key:'time',label:'Time & notes',Icon:Clock3}] as const).map(({key,label,Icon}) => <button key={key} aria-pressed={view === key} className={view === key ? 'selected' : ''} onClick={() => setView(key)}><Icon size={16} />{label}</button>)}</nav><span>{dayLabel(date)}</span></div>
       <p className="planner-save-message" role="status">{message}</p>
-      {view !== 'time' && <form className="planner-quick-add" onSubmit={async event => {
+      {(view === 'schedule' || view === 'list') && <form className="planner-quick-add" onSubmit={async event => {
         event.preventDefault()
         if (unavailable || lock.current || !quickTitle.trim()) return
         lock.current = true; setSaving(true)
@@ -108,12 +112,14 @@ function PlansContent({ date, today, setDate }: { date: string; today: string; s
         {filtered.length ? <div className="planner-task-stack">{filtered.map(task => renderTask(task, conflicts.has(task.id)))}</div> : <Empty>{selected.length ? 'No matching tasks.' : 'No tasks yet. Add your first task above.'}{(search || filter !== 'all') && <button className="text-link" onClick={() => {setSearch('');setFilter('all')}}>Clear filters</button>}</Empty>}
       </section>}
       {view === 'time' && <div className="planner-reflection"><TimeTracking date={date} today={today} /><PlanNotes date={date} /></div>}
+      {view === 'library' && <TaskLibrary date={date} onUse={setEditor} onBuild={()=>setBuilder(true)}/>}
     </>}
     {editor && <PlanEditor task={editor} rows={tasks.rows} today={today} busy={tasks.busy} onClose={() => setEditor(null)} onSave={async task => {
       await tasks.save(task)
-      setEditor(null);setMessage('Plan saved.');setSearch('');setFilter('all')
+      setEditor(null);setMessage('Plan saved.');setSearch('');setFilter('all');setView('schedule')
       if (task.date && task.date !== date) setDate(task.date)
     }} />}
+    {builder && <DayBuilder date={date} onClose={()=>setBuilder(false)} onLibrary={()=>{setBuilder(false);setView('library')}} onAdded={count=>{setBuilder(false);setView('schedule');setMessage(`${count} tasks added to ${dayLabel(date)}.`)}}/>}
     {reuse && <Dialog title="Reuse your plans" onClose={() => setReuse(false)}><PreviousPlans date={date} today={today} /><div className="planner-reuse-history"><h3>Earlier incomplete plans</h3><p className="muted">Copy a plan to a later day without changing the original outcome.</p>{pastIncomplete.length ? pastIncomplete.map(task => <div className="planner-reuse-row" key={task.id}><span><strong>{task.title}</strong><small>{dayLabel(task.date)}</small></span><button className="btn secondary small" onClick={() => {setReuse(false);actions.onCopy(task)}}>Copy</button></div>) : <Empty>No earlier incomplete plans.</Empty>}</div></Dialog>}
     {copy && <Dialog title="Copy to another day" onClose={() => setCopy(null)}><Form busy={tasks.busy} submit="Copy plan" onCancel={() => setCopy(null)} onSubmit={async data => {
       const saved = await tasks.save(copyPlanToDate(copy,textValue(data,'date')))

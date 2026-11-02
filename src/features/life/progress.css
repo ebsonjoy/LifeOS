@@ -515,3 +515,10 @@
     min-height: 38px;
   }
 }
+
+/* Shared by the timetable and Today so instructions stay readable. */
+.life .plan-instructions { margin-top: 12px; padding: 10px 12px; border-left: 2px solid var(--line); background: var(--inset); border-radius: 0 8px 8px 0; }
+.life .plan-instructions > span { display: block; font-size: 10px; color: var(--muted); margin-bottom: 5px; }
+.life .plan-instructions > p { margin: 0; font-size: 12px; line-height: 1.8; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
+.life .plan-item-time { font-variant-numeric: tabular-nums; line-height: 1.7; }
+.life .plan-item-time > span { color: var(--muted); }

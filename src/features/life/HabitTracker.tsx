@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
-import { Check, Minus, Plus, Pencil, Leaf, TrendingDown } from 'lucide-react'
-import type { Habit, HabitLog } from '../../types'
+import { Check, Minus, Plus, Pencil, Leaf, TriangleAlert, Search, Settings2 } from 'lucide-react'
+import type { Habit, HabitLog, ProgressStatus } from '../../types'
 import { useRecords } from './data'
 import {
   DataNotice,
@@ -8,12 +8,10 @@ import {
   Empty,
   Field,
   Form,
-  Panel,
   dayLabel,
   ignoreHandled,
   textValue,
 } from './ui'
-import { shiftDay } from './helpers'
 import {
   habitCount,
   habitPeriod,
@@ -21,11 +19,12 @@ import {
   habitWindow,
   habitSummary,
   prepareHabit,
-  validateHabitCount,
+  prepareHabitEntry,
   isAlcoholHabit,
 } from './habits'
 import './habits.css'
 import { OutcomeButtons } from './OutcomeButtons'
+import { HabitProgressGraph } from './HabitProgressGraph'
 
 export function HabitTracker({
   date,
@@ -39,7 +38,9 @@ export function HabitTracker({
   const habits = useRecords('habits'),
     logs = useRecords('habit_logs')
   const [manage, setManage] = useState(false)
-  const [showAll, setShowAll] = useState(false)
+  const [filter, setFilter] = useState<'all' | 'pending' | 'reviewed'>('all')
+  const [search, setSearch] = useState('')
+  const [message, setMessage] = useState('')
   const [editor, setEditor] = useState<Partial<Habit> | null>(null)
   const [entry, setEntry] = useState<{ habit: Habit; log?: HabitLog } | null>(
     null,
@@ -47,31 +48,28 @@ export function HabitTracker({
   const [saving, setSaving] = useState(false)
   const lock = useRef(false)
   const active = habits.rows.filter((h) => h.is_active)
+  const dailyLogs = new Map(logs.rows.filter(l => l.date === date).map(l => [l.habit_id, l]))
+  const isReviewed = (id: string) => ['completed', 'incomplete'].includes(dailyLogs.get(id)?.outcome || '')
+  const reviewed = active.filter(h => isReviewed(h.id)).length
+  const logged = active.filter(h => habitCount(dailyLogs.get(h.id)) !== null).length
+  const visible = active.filter(h =>
+    `${h.name} ${h.description || ''}`.toLowerCase().includes(search.trim().toLowerCase()) &&
+    (filter === 'all' || (filter === 'reviewed' ? isReviewed(h.id) : !isReviewed(h.id))),
+  )
+  const paused = habits.rows.length - active.length
   const unavailable =
     habits.isLoading || logs.isLoading || !!habits.error || !!logs.error
   const busy = saving || habits.busy || logs.busy
   const disabled = unavailable || busy || date > today
-  async function record(habit: Habit, value: number, note?: string) {
+  async function record(habit: Habit, value: number, note?: string, outcome?: ProgressStatus) {
     if (lock.current || disabled || !habit.is_active) return
-    validateHabitCount(value)
     lock.current = true
     setSaving(true)
     try {
       const existing = logs.rows.find(
         (l) => l.habit_id === habit.id && l.date === date,
       )
-      await logs.save({
-        ...existing,
-        habit_id: habit.id,
-        date,
-        value,
-        completed: value > 0,
-        outcome:
-          existing && habitCount(existing) === value
-            ? existing.outcome
-            : 'planned',
-        note: note ?? existing?.note ?? '',
-      })
+      await logs.save(prepareHabitEntry(habit.id, date, existing, value, note, outcome))
       // Keep controls locked until the saved count has reached the query cache.
       await logs.refetch()
     } finally {
@@ -81,206 +79,74 @@ export function HabitTracker({
   }
   return (
     <>
-      <Panel
-        className="habit-panel"
-        title="Habits, one step at a time"
-        subtitle="Build what helps. Reduce what holds you back."
-        action={
-          <button
-            className="text-link"
-            disabled={unavailable || busy}
-            onClick={() => setManage(true)}
-          >
-            Manage
-          </button>
-        }
-      >
+      <section className="habit-workspace" aria-label="Habit tracking and daily review">
+        <div className="habit-toolbar">
+          <div><span className="habit-eyebrow">DAILY CHECK-IN</span><h2>{date === today ? 'Today’s habits' : dayLabel(date)}</h2><p>Log what you did, then review how the day went.</p></div>
+          <div className="habit-toolbar-actions">
+            <button className="btn secondary" disabled={unavailable || busy} onClick={() => setManage(true)}><Settings2 size={15}/>Manage{paused > 0 ? ` · ${paused} paused` : ''}</button>
+            <button className="btn" disabled={unavailable || busy} onClick={() => setEditor({ habit_type: 'good' })}><Plus size={16}/>Add habit</button>
+          </div>
+        </div>
         <DataNotice queries={[habits, logs]} />
-        <div className="habit-legend">
-          <span>
-            <Leaf size={13} /> Good · build
-          </span>
-          <span>
-            <TrendingDown size={13} /> Bad · reduce
-          </span>
-        </div>
-        {!unavailable && !active.length && (
-          <Empty>
-            Start with one habit to build or one to reduce. Small steps are
-            enough.
-          </Empty>
-        )}
-        <div className="habit-grid">
-          {(showAll ? active : active.slice(0, 2)).map((habit) => {
-            const log = logs.rows.find(
-              (l) => l.habit_id === habit.id && l.date === date,
-            )
-            const count = habitCount(log)
-            const bad = habit.habit_type === 'bad'
-            const window = habitWindow(habit, date)
-            const progress = habitSummary(habit, logs.rows, date, window.days)
-            const target = habitTarget(habit)
-            const unit =
-              habit.unit === 'check' ? 'times' : habit.unit || 'times'
-            return (
-              <article
-                className={'habit-card ' + (bad ? 'habit-bad' : 'habit-good')}
-                key={habit.id}
-                aria-label={habit.name}
-              >
-                <div className="habit-card-heading">
-                  <div>
-                    <span className="habit-kind">
-                      {bad ? <TrendingDown size={12} /> : <Leaf size={12} />}
-                      {bad ? 'Bad habit · reduce' : 'Good habit · build'}
-                    </span>
-                    <h3>{habit.name}</h3>
+        {message && <p className="habit-feedback" role="status">{message}</p>}
+        {!unavailable && <>
+          {!!active.length && <>
+            <div className="habit-overview" aria-label="Selected day summary">
+              <div><span>Active habits</span><strong>{active.length}</strong><small>In your routine</small></div>
+              <div><span>Counts logged</span><strong>{logged}<small> / {active.length}</small></strong><small>Including recorded zeros</small></div>
+              <div><span>Day reviews</span><strong>{reviewed}<small> / {active.length}</small></strong><small>{active.length - reviewed ? `${active.length - reviewed} still to review` : 'All reviews recorded'}</small></div>
+            </div>
+            {date > today && <p className="habit-future-note">You’re viewing a future day. You can manage habits now and record progress when the day arrives.</p>}
+            <div className="habit-list-toolbar">
+              <div className="habit-filters" role="group" aria-label="Filter daily reviews">
+                <button aria-pressed={filter === 'all'} onClick={() => setFilter('all')}>All habits <span>{active.length}</span></button>
+                <button aria-pressed={filter === 'pending'} onClick={() => setFilter('pending')}>To review <span>{active.length - reviewed}</span></button>
+                <button aria-pressed={filter === 'reviewed'} onClick={() => setFilter('reviewed')}>Reviewed <span>{reviewed}</span></button>
+              </div>
+              <label className="habit-search"><Search size={15}/><input aria-label="Search habits" placeholder="Search habits…" value={search} onChange={e => setSearch(e.target.value)}/></label>
+            </div>
+          </>}
+          {!active.length ? <div className="habit-empty"><Leaf size={30}/><h3>{paused ? 'Your habits are paused' : 'Make room for one small habit'}</h3><p>{paused ? 'Resume a habit to start logging again, or add a new one.' : 'Choose something to build or reduce. Give it a simple target and check in each day.'}</p><button className="btn" onClick={() => paused ? setManage(true) : setEditor({habit_type:'good'})} disabled={busy}>{paused ? 'Manage paused habits' : 'Add your first habit'}</button></div> : <>
+            {!visible.length && <Empty>{search ? 'No habits match your search.' : filter === 'pending' ? 'All daily reviews are recorded.' : 'No reviews recorded yet.'}<button className="text-link" onClick={() => {setSearch('');setFilter('all')}}>Show all habits</button></Empty>}
+            <div className="habit-list">
+              {visible.map(habit => {
+                const log = dailyLogs.get(habit.id)
+                const count = habitCount(log)
+                const bad = habit.habit_type === 'bad'
+                const window = habitWindow(habit, date)
+                const progress = habitSummary(habit, logs.rows, date, window.days)
+                const target = habitTarget(habit)
+                const unit = habit.unit === 'check' ? 'times' : habit.unit || 'times'
+                const status = log?.outcome || 'planned'
+                return <article className={'habit-row ' + (bad ? 'habit-bad' : 'habit-good')} key={habit.id} aria-label={habit.name}>
+                  <div className="habit-row-main">
+                    <div className="habit-identity">
+                      <div className="habit-row-heading"><span className="habit-kind">{bad ? <TriangleAlert size={13}/> : <Leaf size={13}/>}{bad ? 'Bad habit · Reduce' : 'Build'}</span><button className="icon-btn" aria-label={'Edit habit ' + habit.name} disabled={busy} onClick={() => setEditor(habit)}><Pencil size={14}/></button></div>
+                      <h3>{habit.name}</h3>
+                      <p className="habit-goal">{bad ? 'At most' : 'At least'} <strong>{target} {unit}</strong> · {window.label.toLowerCase()}</p>
+                      <p className="habit-period-status">{progress.recorded === 0 ? 'No counts logged in this period.' : `${progress.total} ${unit} logged${window.days > 1 ? ` · ${progress.recorded}/${window.days} days recorded` : ''}`}</p>
+                    </div>
+                    <div className="habit-log-area">
+                      <span className="habit-section-label">1. Log this day</span>
+                      <div className="habit-count-row"><div className="habit-count" aria-live="polite"><strong>{count === null ? '—' : count}</strong><span>{count === null ? 'Not logged' : unit}</span></div><div className="habit-counter-actions"><button className="icon-btn" disabled={disabled || !count} aria-label={'Undo one for ' + habit.name} onClick={() => ignoreHandled(record(habit, Math.max(0, (count || 0) - 1)))}><Minus size={15}/></button><button className="btn habit-log-one" disabled={disabled || (count ?? 0) >= 9999} aria-label={'Log one for ' + habit.name} onClick={() => ignoreHandled(record(habit, (count || 0) + 1))}><Plus size={15}/>1</button></div></div>
+                      <div className="habit-entry-actions"><button className="text-link" disabled={disabled || count === 0} aria-label={'Record zero for ' + habit.name} onClick={() => ignoreHandled(record(habit, 0))}>{count === 0 ? <><Check size={12}/>Zero recorded</> : 'Record zero'}</button><button className="text-link" disabled={disabled} aria-label={'Set count and note for ' + habit.name} onClick={() => setEntry({habit, log})}>Set count & note</button></div>
+                    </div>
+                    <div className="habit-review-area">
+                      <span className="habit-section-label">2. Review this day</span>
+                      <p className={'habit-review-status ' + status}>{status === 'completed' ? 'Complete' : status === 'incomplete' ? 'Incomplete' : 'Not reviewed'}</p>
+                      <OutcomeButtons label={habit.name} value={log?.outcome} disabled={disabled || !log} onChange={outcome => ignoreHandled(logs.save({...log!, outcome}))}/>
+                      {!log && <small>Log a count or zero to review.</small>}
+                    </div>
                   </div>
-                  <button
-                    className="icon-btn"
-                    aria-label={'Edit habit ' + habit.name}
-                    disabled={busy || unavailable}
-                    onClick={() => setEditor(habit)}
-                  >
-                    <Pencil size={14} />
-                  </button>
-                </div>
-                <p className="habit-goal">
-                  {bad ? 'Aim for at most' : 'Aim for at least'}{' '}
-                  <strong>
-                    {target} {unit}
-                  </strong>{' '}
-                  · {window.label.toLowerCase()}
-                </p>
-                <div className="habit-count-row">
-                  <div className="habit-count" aria-live="polite">
-                    <strong>{count === null ? '—' : count}</strong>
-                    <span>
-                      {count === null ? 'Not logged' : `${unit} recorded`}
-                    </span>
-                  </div>
-                  <div className="habit-counter-actions">
-                    <button
-                      className="icon-btn"
-                      disabled={disabled || !count}
-                      aria-label={'Undo one for ' + habit.name}
-                      onClick={() =>
-                        ignoreHandled(
-                          record(habit, Math.max(0, (count || 0) - 1)),
-                        )
-                      }
-                    >
-                      <Minus size={16} />
-                    </button>
-                    <button
-                      className="btn habit-log-one"
-                      disabled={disabled || (count ?? 0) >= 9999}
-                      aria-label={'Log one for ' + habit.name}
-                      onClick={() =>
-                        ignoreHandled(record(habit, (count || 0) + 1))
-                      }
-                    >
-                      <Check size={16} /> +1
-                    </button>
-                  </div>
-                </div>
-                {count !== null && count > 0 && (
-                  <div className="habit-ticks" aria-hidden="true">
-                    {Array.from(
-                      { length: Math.min(Math.floor(count), 6) },
-                      (_, i) => (
-                        <span key={i}>
-                          <Check size={12} />
-                        </span>
-                      ),
-                    )}
-                    {count > 6 && <small>+{count - 6}</small>}
-                    <small>One tick per occurrence</small>
-                  </div>
-                )}
-                <div className="habit-entry-actions">
-                  <button
-                    className="text-link"
-                    disabled={disabled}
-                    onClick={() => ignoreHandled(record(habit, 0))}
-                  >
-                    {count === 0 ? '✓ Zero recorded' : 'None this day · 0'}
-                  </button>
-                  <button
-                    className="text-link"
-                    disabled={disabled}
-                    onClick={() => setEntry({ habit, log })}
-                  >
-                    Set count / note
-                  </button>
-                </div>
-                {date > today ? (
-                  <p className="habit-caption">
-                    You can log this day when it arrives.
-                  </p>
-                ) : (
-                  <p className="habit-caption">
-                    {window.days > 1 && (
-                      <>
-                        {progress.total} {unit} logged ·{' '}
-                      </>
-                    )}
-                    {progress.recorded === 0
-                      ? 'No entries yet.'
-                      : bad
-                        ? progress.total > target
-                          ? 'Above your current limit. Keep logging honestly.'
-                          : 'Within your current limit so far.'
-                        : progress.total >= target
-                          ? 'Your current target is reached.'
-                          : `${Math.max(0, target - progress.total)} more toward your current target.`}
-                    {progress.recorded < window.days &&
-                      ` ${window.days - progress.recorded} ${window.days - progress.recorded === 1 ? 'day not' : 'days not'} logged.`}
-                  </p>
-                )}
-                {log?.note && <p className="habit-day-note">{log.note}</p>}
-                <div className="habit-outcome">
-                  <p className="habit-caption">
-                    Day review{!log ? ' · record a count first' : ''}
-                  </p>
-                  <OutcomeButtons
-                    label={habit.name}
-                    value={log?.outcome}
-                    disabled={disabled || !log}
-                    onChange={(outcome) =>
-                      ignoreHandled(logs.save({ ...log!, outcome }))
-                    }
-                  />
-                </div>
-                <HabitHistory
-                  habit={habit}
-                  logs={logs.rows}
-                  end={date > today ? today : date}
-                  onDate={onDate}
-                />
-              </article>
-            )
-          })}
-        </div>
-        <div className="habit-bottom-actions">
-          <button
-            className="text-link"
-            disabled={unavailable || busy}
-            onClick={() => setEditor({ habit_type: 'good' })}
-          >
-            <Plus size={14} /> Add habit
-          </button>
-          {active.length > 2 && (
-            <button className="text-link" onClick={() => setShowAll(!showAll)}>
-              {showAll ? 'Show fewer' : `Show all ${active.length}`}
-            </button>
-          )}
-        </div>
-        <p className="habit-footnote">
-          Zero means you recorded none. A dash means you haven’t logged that
-          day.
-        </p>
-      </Panel>
+                  {log?.note && <p className="habit-day-note"><strong>Day note</strong> {log.note}</p>}
+                  <HabitHistory habit={habit} logs={logs.rows} end={date > today ? today : date} today={today} onDate={onDate}/>
+                </article>
+              })}
+            </div>
+            <p className="habit-footnote">0 means none recorded. — means not logged. Changing a count clears its review so you can review it again.</p>
+          </>}
+        </>}
+      </section>
       {manage && (
         <Dialog title="Your habits" onClose={() => setManage(false)}>
           <p className="muted">
@@ -291,7 +157,7 @@ export function HabitTracker({
               <div>
                 <strong>{habit.name}</strong>
                 <p className="muted">
-                  {habit.habit_type === 'bad' ? 'Bad · reduce' : 'Good · build'}{' '}
+                  {habit.habit_type === 'bad' ? 'Reduce' : 'Build'}{' '}
                   · {habit.is_active ? 'Active' : 'Paused'}
                 </p>
               </div>
@@ -333,11 +199,13 @@ export function HabitTracker({
       )}
       {editor && (
         <Dialog
-          title={editor.id ? 'Adjust your habit' : 'Start with a small step'}
+          title={editor.id ? 'Edit habit' : 'Add a habit'}
           onClose={() => setEditor(null)}
         >
           <Form
             busy={habits.busy}
+            submit={editor.id ? 'Save changes' : 'Add habit'}
+            onCancel={() => setEditor(null)}
             onSubmit={async (data) => {
               const fields = prepareHabit({
                 name: textValue(data, 'name'),
@@ -354,11 +222,14 @@ export function HabitTracker({
                 is_active: editor.is_active ?? true,
               })
               setEditor(null)
+              setSearch('');setFilter('all')
+              setMessage(editor.id ? 'Habit updated.' : 'Habit added. You can log your first count below.')
             }}
           >
             <Field label="Habit">
               <input
                 name="name"
+                autoFocus
                 required
                 maxLength={100}
                 value={editor.name || ''}
@@ -376,8 +247,8 @@ export function HabitTracker({
                   })
                 }
               >
-                <option value="good">Good habit · build more</option>
-                <option value="bad">Bad habit · reduce</option>
+                <option value="good">Build a habit</option>
+                <option value="bad">Reduce a habit</option>
               </select>
             </Field>
             <div className="form-grid">
@@ -408,7 +279,7 @@ export function HabitTracker({
               </Field>
             </div>
             <Field
-              label="What does one tick count?"
+              label="Count in"
               hint="Use the same measure each time, such as sessions, cups, or times."
             >
               <input
@@ -420,7 +291,7 @@ export function HabitTracker({
               />
             </Field>
             <Field
-              label="My small plan (optional)"
+              label="Your plan (optional)"
               hint="A trigger to watch for, or something helpful to do instead."
             >
               <textarea
@@ -448,11 +319,14 @@ export function HabitTracker({
           <p className="muted">{dayLabel(date)}</p>
           <Form
             busy={busy}
+            submit="Save daily entry"
+            onCancel={() => setEntry(null)}
             onSubmit={async (data) => {
               await record(
                 entry.habit,
                 Number(data.get('count')),
                 textValue(data, 'note'),
+                (textValue(data, 'outcome') || undefined) as ProgressStatus | undefined,
               )
               setEntry(null)
             }}
@@ -468,6 +342,7 @@ export function HabitTracker({
                 defaultValue={habitCount(entry.log) ?? 0}
               />
             </Field>
+            <Field label="Day review" hint="Record your count and review together, or leave the review for later."><select name="outcome" defaultValue=""><option value="">{entry.log?.outcome && entry.log.outcome !== 'planned' ? 'Keep review if count is unchanged' : 'Review later'}</option><option value="planned">Clear review / review later</option><option value="completed">Complete</option><option value="incomplete">Incomplete</option></select></Field>
             <Field label="What helped or triggered it? (optional)">
               <textarea
                 name="note"
@@ -490,23 +365,24 @@ function HabitHistory({
   habit,
   logs,
   end,
+  today,
   onDate,
 }: {
   habit: Habit
   logs: HabitLog[]
   end: string
+  today: string
   onDate: (date: string) => void
 }) {
   const current = habitSummary(habit, logs, end, 7)
-  const previous = habitSummary(habit, logs, shiftDay(end, -7), 7)
   const bad = habit.habit_type === 'bad'
-  const complete = current.recorded === 7 && previous.recorded === 7
-  const difference = current.total - previous.total
+  const [open, setOpen] = useState(false)
   return (
-    <details className="habit-history">
+    <details className="habit-history" onToggle={event => setOpen(event.currentTarget.open)}>
       <summary>
         Progress & history <span>{current.total} logged in 7 days</span>
       </summary>
+      {open && <HabitProgressGraph habit={habit} logs={logs} end={end} today={today}/>}
       {habit.description && (
         <p className="habit-plan">
           <strong>My plan</strong>
@@ -515,7 +391,7 @@ function HabitHistory({
         </p>
       )}
       <p className="habit-caption">
-        7 days ending{' '}
+        Recent entries · 7 days ending{' '}
         {new Date(end + 'T12:00:00').toLocaleDateString('en-IN', {
           day: 'numeric',
           month: 'short',
@@ -546,30 +422,6 @@ function HabitHistory({
           </button>
         ))}
       </div>
-      <div className="habit-comparison">
-        <div>
-          <span>Last 7 days</span>
-          <strong>{current.total}</strong>
-          <small>{current.recorded}/7 days logged</small>
-        </div>
-        <div>
-          <span>Previous 7 days</span>
-          <strong>{previous.total}</strong>
-          <small>{previous.recorded}/7 days logged</small>
-        </div>
-      </div>
-      <p className="habit-caption">
-        {complete
-          ? difference === 0
-            ? 'The total is unchanged from the previous 7 days.'
-            : `${Math.abs(difference)} ${difference < 0 ? 'fewer' : 'more'} recorded than the previous 7 days.${(bad ? difference < 0 : difference > 0) ? ' Moving in your chosen direction.' : ' A change in your count, not a reset of your progress.'}`
-          : 'These are recorded totals. Log missing days before comparing progress.'}
-      </p>
-      <p className="habit-caption">
-        {current.occurrenceDays} {current.occurrenceDays === 1 ? 'day' : 'days'}{' '}
-        with occurrences · {current.zeroDays} recorded zero{' '}
-        {current.zeroDays === 1 ? 'day' : 'days'}
-      </p>
       {bad && isAlcoholHabit(habit.name) && <AlcoholNote />}
     </details>
   )

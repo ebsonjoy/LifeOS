@@ -14,6 +14,7 @@ import {
   textValue,
 } from '../../features/life/ui'
 const tables: Table[] = [
+  'plan_templates',
   'money_accounts',
   'money_transactions',
   'money_budgets',
@@ -213,6 +214,11 @@ export function Settings() {
             <details>
               <summary>Database update & setup instructions</summary>
               <div className="stack">
+                <p className="muted">
+                  For the Plans task library, run{' '}
+                  <code>supabase/migrations/20261031_plan_templates.sql</code>.
+                  Saved tasks are separate from your daily timetable and history.
+                </p>
                 <p className="muted">
                   For Money accounts, transactions and budgets, run{' '}
                   <code>supabase/migrations/20261030_money.sql</code>. It adds

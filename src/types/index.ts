@@ -239,6 +239,19 @@ export interface PlannedTask {
   updated_at?: string
 }
 
+export interface PlanTemplate {
+  id: string
+  user_id: string
+  title: string
+  category: string
+  /** Legacy library fields retained for existing backups; daily plans choose their own times. */
+  duration_minutes?: number
+  default_start?: string
+  notes: string
+  created_at: string
+  updated_at: string
+}
+
 
 export interface ExerciseSet {
   id: string

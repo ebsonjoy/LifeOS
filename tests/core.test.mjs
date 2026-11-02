@@ -98,6 +98,8 @@ async function modules(cloud = false, cloudError = null) {
   await habits.evaluate()
   const progress = await load('src/features/life/progress.ts')
   await progress.evaluate()
+  const library = await load('src/features/life/planLibrary.ts')
+  await library.evaluate()
   const planner = await load('src/features/life/plans.ts')
   await planner.evaluate()
   const money = await load('src/features/life/money.ts')
@@ -116,6 +118,7 @@ async function modules(cloud = false, cloudError = null) {
     progress: progress.namespace,
     works: works.namespace,
     planner: planner.namespace,
+    library: library.namespace,
     money: money.namespace,
     workoutNames: workoutNames.namespace,
     jobSearch: jobSearch.namespace,
@@ -1101,4 +1104,161 @@ test('failed cloud money saves do not create local entries or partial transfers'
   await assert.rejects(r.saveRecord('money_transactions','user-1',{account_id:'a',to_account_id:'b',kind:'transfer',amount_minor:500,date:'2026-01-02',category:'',description:''}),/Save unavailable/)
   assert.equal(writes,1)
   assert.equal(items.size,0)
+})
+
+
+test('task library validates reusable definitions and preserves planned snapshots on edit or deletion', async () => {
+  const {records:r,library:l} = await modules()
+  const template=await r.saveRecord('plan_templates','user-1',{title:'Deep work',category:'work',duration_minutes:90,default_start:'23:30',notes:'No distractions'})
+  const plan=l.planFromTemplate(template,'2026-11-01')
+  assert.equal(plan.start_time,'');assert.equal(plan.end_time,'');assert.equal(plan.ends_next_day,false)
+  const scheduled={...plan,start_time:'23:30',end_time:'01:00',ends_next_day:true}
+  assert.equal(plan.actual_minutes,null);assert.equal(plan.status,'planned');assert.equal(plan.id,undefined)
+  const saved=await r.saveRecord('daily_plans','user-1',scheduled)
+  await r.saveRecord('plan_templates','user-1',{...template,title:'Focus',duration_minutes:45,notes:'New instructions'})
+  await r.removeRecord('plan_templates','user-1',template.id)
+  const rows=await r.listRecords('daily_plans','user-1')
+  assert.equal(rows[0].id,saved.id);assert.equal(rows[0].title,'Deep work');assert.equal(rows[0].end_time,'01:00');assert.equal(rows[0].summary,'No distractions')
+  assert.equal((await r.listRecords('plan_templates','user-2')).length,0)
+  for(const patch of [{title:' '},{duration_minutes:0},{duration_minutes:1.5},{duration_minutes:1441},{default_start:'24:00'},{category:'bad'}]) assert.throws(()=>l.validateTemplate({...template,...patch}))
+})
+
+test('day builder sequences tasks, allows repeated breaks, and handles midnight explicitly', async () => {
+  const {library:l} = await modules()
+  const template={title:'Break',category:'personal',duration_minutes:15,default_start:'',notes:''}
+  const drafts=[l.draftFromTemplate(template,crypto.randomUUID()),l.draftFromTemplate(template,crypto.randomUUID())]
+  drafts.forEach(draft=>{draft.duration=15})
+  const arranged=l.sequenceDrafts(drafts,'23:30')
+  assert.equal(arranged[0].start,'23:30');assert.equal(arranged[1].start,'23:45')
+  const plans=l.draftsToPlans(arranged,'2026-11-01')
+  assert.equal(plans[1].end_time,'00:00');assert.equal(plans[1].ends_next_day,true)
+  assert.notEqual(plans[0].id,plans[1].id)
+  assert.equal(drafts[0].start,'')
+  assert.throws(()=>l.sequenceDrafts(drafts,'23:50'),/after midnight/)
+  assert.throws(()=>l.draftsToPlans(drafts,'2026-02-30'),/valid date/)
+  assert.throws(()=>l.draftsToPlans([{...drafts[0],start:'08:00',duration:0}],'2026-11-01'),/Duration/)
+  assert.equal(l.draftsToPlans(drafts.map(d=>({...d,duration:0})),'2026-11-01')[0].start_time,'')
+})
+
+test('day batch saves all plans once, preserves reviewed entries on retry, and remains account scoped', async () => {
+  const {records:r,library:l} = await modules()
+  const template={title:'Read',category:'learning',duration_minutes:30,default_start:'08:00',notes:'Book'}
+  const drafts=[l.draftFromTemplate(template,crypto.randomUUID()),l.draftFromTemplate(template,crypto.randomUUID())]
+  drafts[0].summary='Read chapter 2.\nWrite three key ideas.'
+  const rows=l.draftsToPlans(drafts,'2026-11-01')
+  assert.equal(template.notes,'Book');assert.equal(drafts[1].summary,'Book')
+  await r.addPlanBatch('user-1',rows)
+  const saved=await r.listRecords('daily_plans','user-1')
+  assert.equal(saved[0].summary,'Read chapter 2.\nWrite three key ideas.');assert.equal(saved[1].summary,'Book')
+  await r.saveRecord('daily_plans','user-1',{...saved[0],status:'completed',completed:true,actual_minutes:25})
+  await r.addPlanBatch('user-1',rows)
+  const repeated=await r.listRecords('daily_plans','user-1')
+  assert.equal(repeated.length,2);assert.equal(repeated[0].status,'completed');assert.equal(repeated[0].actual_minutes,25)
+  assert.equal((await r.listRecords('daily_plans','user-2')).length,0)
+  await assert.rejects(r.addPlanBatch('user-1',[...rows,{...rows[0],id:crypto.randomUUID(),title:''}]),/task name/)
+  assert.equal((await r.listRecords('daily_plans','user-1')).length,2)
+  await assert.rejects(r.addPlanBatch('user-1',[rows[0],rows[0]]),/distinct/)
+})
+
+test('day batch uses one cloud request with conflict-safe retry and never falls back after failure', async () => {
+  const {records:r,library:l,client,items} = await modules(true)
+  const rows=l.draftsToPlans([l.draftFromTemplate({title:'Wake up',category:'personal',duration_minutes:15,default_start:'06:00',notes:''},crypto.randomUUID())],'2026-11-01')
+  let writes=0
+  client.from=(table)=>({upsert:(data,options)=>{writes++;assert.equal(table,'daily_plans');assert.equal(data.length,1);assert.equal(data[0].user_id,'user-1');assert.equal(options.ignoreDuplicates,true);assert.equal(options.onConflict,'id');return Promise.resolve({error:{message:'Network unavailable'}})}})
+  await assert.rejects(r.addPlanBatch('user-1',rows),/Network unavailable/)
+  assert.equal(writes,1);assert.equal(items.size,0)
+})
+
+test('task library missing schema points to its migration without blocking daily plans', async () => {
+  const {records:r}=await modules(true,{code:'PGRST205',message:'missing'})
+  await assert.rejects(r.listRecords('plan_templates','user-1'),/20261031_plan_templates.sql/)
+})
+
+
+test('saved tasks need no schedule and can be reused across days with independent times', async () => {
+  const {records:r,library:l} = await modules()
+  const task=await r.saveRecord('plan_templates','user-1',{title:'English practice',category:'english',notes:'Read aloud and review vocabulary.'})
+  const first=l.draftFromTemplate(task,crypto.randomUUID())
+  const second=l.draftFromTemplate({...task,default_start:'06:00',duration_minutes:90},crypto.randomUUID())
+  assert.equal(first.start,'');assert.equal(first.duration,0)
+  assert.equal(second.start,'');assert.equal(second.duration,0)
+  first.start='08:00';first.duration=30
+  second.start='18:00';second.duration=45
+  await r.addPlanBatch('user-1',l.draftsToPlans([first],'2026-11-01'))
+  await r.addPlanBatch('user-1',l.draftsToPlans([second],'2026-11-02'))
+  const plans=await r.listRecords('daily_plans','user-1')
+  assert.equal(plans[0].start_time,'08:00');assert.equal(plans[0].end_time,'08:30')
+  assert.equal(plans[1].date,'2026-11-02');assert.equal(plans[1].start_time,'18:00');assert.equal(plans[1].end_time,'18:45')
+  assert.equal(plans[1].summary,task.notes)
+  assert.equal(JSON.stringify(await r.listRecords('plan_templates','user-1')),JSON.stringify([task]))
+  assert.throws(()=>l.draftsToPlans([{...first,start:''}],'2026-11-01'),/Choose a start time/)
+})
+
+test('habit daily entries save counts and reviews together while preserving zero and reset rules', async () => {
+  const { habits:h, records:r } = await modules()
+  const zero=h.prepareHabitEntry('habit-1','2026-11-02',undefined,0,'No occurrences','completed')
+  const saved=await r.saveRecord('habit_logs','user-1',zero)
+  assert.equal(h.habitCount(saved),0)
+  assert.equal(saved.completed,false)
+  assert.equal(saved.outcome,'completed')
+  const same=h.prepareHabitEntry('habit-1','2026-11-02',saved,0)
+  assert.equal(same.outcome,'completed')
+  assert.equal(same.note,'No occurrences')
+  const changed=h.prepareHabitEntry('habit-1','2026-11-02',saved,1)
+  assert.equal(changed.outcome,'planned')
+  assert.equal(changed.id,saved.id)
+  const reviewed=h.prepareHabitEntry('habit-1','2026-11-02',saved,2,'Updated count','incomplete')
+  await r.saveRecord('habit_logs','user-1',reviewed)
+  const rows=await r.listRecords('habit_logs','user-1')
+  assert.equal(rows.length,1)
+  assert.equal(rows[0].value,2)
+  assert.equal(rows[0].outcome,'incomplete')
+  assert.equal(rows[0].note,'Updated count')
+  assert.equal((await r.listRecords('habit_logs','user-2')).length,0)
+  assert.throws(()=>h.prepareHabitEntry('habit-1','2026-11-02',saved,-1),/whole count/)
+  assert.throws(()=>h.prepareHabitEntry('habit-1','2026-11-02',saved,1,'','invalid'),/valid day review/)
+})
+
+test('habit graph ranges handle calendar boundaries, leap days and custom validation', async () => {
+  const { habits:h }=await modules()
+  assert.equal(h.habitGraphRange('week','2026-01-02').start,'2025-12-27')
+  assert.equal(h.habitGraphRange('month','2024-02-29').start,'2024-02-01')
+  assert.equal(h.habitGraphRange('year','2026-11-02').start,'2026-01-01')
+  assert.equal(h.habitGraphData('h',[],'2024-02-01','2024-02-29','2026-11-02').days,29)
+  for (const [start,end] of [['2026-02-30','2026-03-02'],['','2026-11-02'],['2026-11-02','2026-11-01'],['2026-11-01','2026-11-03'],['2000-01-01','2026-11-02']]) {
+    assert.throws(()=>h.habitGraphData('h',[],start,end,'2026-11-02'))
+  }
+})
+
+test('habit graphs preserve missing versus zero, isolate habits, and count only explicit completed reviews', async () => {
+  const { habits:h }=await modules()
+  const logs=[
+    {habit_id:'h',date:'2026-10-30',completed:true,value:3,outcome:'planned'},
+    {habit_id:'h',date:'2026-10-31',completed:false,value:1,outcome:'completed'},
+    {habit_id:'h',date:'2026-11-02',completed:true,value:2,outcome:'incomplete'},
+    {habit_id:'other',date:'2026-11-01',completed:true,value:999,outcome:'completed'},
+    {habit_id:'h',date:'2026-11-03',completed:true,value:999,outcome:'completed'},
+  ]
+  const graph=h.habitGraphData('h',logs,'2026-10-30','2026-11-02','2026-11-02')
+  assert.equal(graph.total,5);assert.equal(graph.recorded,3);assert.equal(graph.completed,1);assert.equal(graph.zeroDays,1)
+  assert.equal(graph.points[1].value,0);assert.equal(graph.points[2].value,null)
+  assert.equal(graph.points.length,4);assert.equal(graph.grouped,false)
+  const single=h.habitGraphData('h',logs,'2026-10-31','2026-10-31','2026-11-02')
+  assert.equal(single.days,1);assert.equal(single.recorded,1);assert.equal(single.total,0)
+})
+
+test('year and long custom habit graphs aggregate monthly with exact logging coverage and empty months', async () => {
+  const { habits:h }=await modules()
+  const logs=[
+    {habit_id:'h',date:'2026-01-10',completed:true,value:4,outcome:'completed'},
+    {habit_id:'h',date:'2026-01-11',completed:true,value:3,outcome:'completed'},
+    {habit_id:'h',date:'2026-03-01',completed:false,value:0,outcome:'completed'},
+  ]
+  const graph=h.habitGraphData('h',logs,'2026-01-01','2026-03-02','2026-11-02',true)
+  assert.equal(graph.points.length,3)
+  assert.equal(graph.points[0].value,7);assert.equal(graph.points[0].days,31);assert.equal(graph.points[0].recorded,2)
+  assert.equal(graph.points[1].value,null);assert.equal(graph.points[1].days,28)
+  assert.equal(graph.points[2].value,0);assert.equal(graph.points[2].days,2);assert.equal(graph.points[2].recorded,1)
+  assert.equal(graph.completed,3)
+  assert.equal(h.habitGraphData('h',logs,'2025-12-31','2026-03-04','2026-11-02').grouped,true)
 })

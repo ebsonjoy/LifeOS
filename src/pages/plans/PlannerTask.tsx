@@ -1,6 +1,7 @@
 import { Copy, Pencil, Trash2, Clock3, AlertCircle } from 'lucide-react'
 import type { PlannedTask, ProgressStatus } from '../../types'
 import { durationLabel, plannedDuration, planStatus } from '../../features/life/progress'
+import { PlanInstructions } from '../../features/life/PlanInstructions'
 import { timeLabel } from '../../features/life/helpers'
 
 export interface PlannerActions {
@@ -25,7 +26,7 @@ export function PlannerTask({ task, today, busy, conflict = false, now = false, 
         </div>
         <button className="planner-task-title" disabled={busy} onClick={() => actions.onEdit(task)}>{task.title}</button>
         <div className="planner-task-meta"><Clock3 size={12} /><span>{task.start_time ? timeLabel(task.start_time) + (task.end_time ? ' – ' + timeLabel(task.end_time) : '') + (task.ends_next_day ? ' (+1 day)' : '') : 'Any time'}{duration != null ? ' · ' + durationLabel(duration) : ''}</span>{task.actual_minutes != null && <span>Actual {durationLabel(task.actual_minutes)}</span>}</div>
-        {task.summary && <p className="planner-task-note">{task.summary}</p>}
+        <PlanInstructions text={task.summary}/>
       </div>
       <div className="planner-task-controls">
         <select aria-label={'Status for ' + task.title} value={status} disabled={busy || task.date > today} onChange={event => actions.onStatus(task, event.target.value as ProgressStatus)}>
